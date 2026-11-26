@@ -173,13 +173,29 @@ index 5afb50c..6a9c7f4 100644
  };
  
  #endif
+diff --git a/quirkcore/include/quirkcore/QuirkTransportation.h b/quirkcore/include/quirkcore/QuirkTransportation.h
+index 7023e81..a870df2 100644
+--- a/quirkcore/include/quirkcore/QuirkTransportation.h
++++ b/quirkcore/include/quirkcore/QuirkTransportation.h
+@@ -75,6 +75,7 @@ private:
+   G4int fNoLooperTrials{0};
+   G4double fSumEnergyKilled{0.0};
+   G4double fMaxEnergyKilled{0.0};
++  G4bool fKillOutsideWorld{false};  // a forced step ended outside the world
+   G4bool fMoveTinySteps;     // move the quirk on steps below the navigation tolerance
+   G4double fCrossingLength;  // incoming string shorter than this: restart it (0: never)
+ };
 diff --git a/quirkcore/src/QuirkDecay.cc b/quirkcore/src/QuirkDecay.cc
 new file mode 100644
-index 0000000..7f72902
+index 0000000..14c7481
 --- /dev/null
 +++ b/quirkcore/src/QuirkDecay.cc
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,282 @@
 +#include "quirkcore/QuirkDecay.h"
++#include <cstdio>
++#include <cstdlib>
++#include "G4VPhysicalVolume.hh"
++#include "G4StepPoint.hh"
 +#include "quirkcore/Quirk.h"
 +#include "quirkcore/QuirkStringStore.h"
 +
@@ -645,10 +661,62 @@ index 9a37819..45d27de 100644
        pmanager->DumpInfo();
      }
 diff --git a/quirkcore/src/QuirkTransportation.cc b/quirkcore/src/QuirkTransportation.cc
-index 52685a4..6d5d2ea 100644
+index 52685a4..2029bcf 100644
 --- a/quirkcore/src/QuirkTransportation.cc
 +++ b/quirkcore/src/QuirkTransportation.cc
-@@ -280,7 +280,9 @@ void QuirkTransportation::StartTracking(G4Track* aTrack) {
+@@ -1,3 +1,5 @@
++#include <cstdio>
++#include <cstdlib>
+ #include "quirkcore/QuirkTransportation.h"
+ #include "quirkcore/QuirkTrackStatus.h"
+ #include "quirkcore/QuirkHyperbolaStepper.h"
+@@ -5,6 +7,14 @@
+ #include "quirkcore/Quirk.h"
+ 
+ #include "G4ios.hh"
++#include "G4TransportationManager.hh"
++#include "G4Navigator.hh"
++#include "G4VPhysicalVolume.hh"
++#include "G4LogicalVolume.hh"
++#include "G4VSolid.hh"
++#include "G4Step.hh"
++#include "G4StepPoint.hh"
++#include "G4VProcess.hh"
+ 
+ #include "G4ProductionCutsTable.hh"
+ #include "G4ChordFinder.hh"
+@@ -117,6 +127,16 @@ G4double QuirkTransportation::AlongStepGetPhysicalInteractionLength(const G4Trac
+   fPreviousSftOrigin = startPosition;
+   fPreviousSafety = currentSafety;
+ 
++  // A forced step (below the navigation tolerance, e.g. a one-process step limit that does not advance) moves the quirk
++  // by the whole string vector without navigation. If that carries it out of the world it is gone: kill it instead of
++  // letting a secondary be created outside the geometry.
++  fKillOutsideWorld = false;
++  if (fMoveTinySteps && currentMinimumStep > 0. && aFieldTrack.GetCurveLength() > 0. && !fGeometryLimitedStep) {
++    const G4VPhysicalVolume* world = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking()->GetWorldVolume();
++    if (world && world->GetLogicalVolume()->GetSolid()->Inside(aFieldTrack.GetPosition()) == kOutside)
++      fKillOutsideWorld = true;
++  }
++
+   // end-of-step quantities
+   G4double geometryStepLength = aFieldTrack.GetCurveLength();
+   fTransportEndPosition = aFieldTrack.GetPosition();
+@@ -174,6 +194,13 @@ G4VParticleChange* QuirkTransportation::AlongStepDoIt(const G4Track& track, cons
+   G4double deltaProperTime = deltaTime * (track.GetDynamicParticle()->GetMass() / track.GetTotalEnergy());
+   fParticleChange.ProposeProperTime(track.GetProperTime() + deltaProperTime);
+ 
++  if (fKillOutsideWorld) {
++    fParticleChange.ProposeTrackStatus(fStopAndKill);
++    fParticleChange.ProposePosition(track.GetPosition());
++    fKillOutsideWorld = false;
++    return &fParticleChange;
++  }
++
+   // kill a particle stuck looping in the field
+   if (fParticleIsLooping) {
+     G4double endEnergy = fTransportEndKineticEnergy;
+@@ -280,7 +307,9 @@ void QuirkTransportation::StartTracking(G4Track* aTrack) {
  void QuirkTransportation::EndTracking() {
    // killed by anything (envelope, time cut, user actions): the partner must not wait for it
    if (nullptr != fCurrentTrack && !QuirkTrackStatus::isSuspended(fCurrentTrack)) {

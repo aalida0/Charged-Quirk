@@ -30,6 +30,10 @@ python3 /path/to/quirkdecay/validate_decay.py lep.root 500 0.356 6.21196
 * An earlier flat-invariant-matrix-element generator gave a 3.7% high muon mean (214 vs 207 MeV); the exact flat-Dalitz MC agreed with it (216 +- 1), showing the static reference needs the E_l E_nu matrix-element factor. The tensor weighting fixes this.
 * pi pi0 weight: non-negative and below its rejection bound on random configurations; the pi pi0 channel has not been validated against its analytic spectrum in the simulation.
 
+## Transport change (not decay physics)
+
+With the decay process present, a free quirk (Lambda = 10, 30 eV, c*tau = 1 m) reproducibly segfaulted at event 530 of the Drell-Yan sample. Cause: hIoni repeatedly defined a step of 8e-17 mm, which QuirkTransportation takes as a "forced" step (`moveTinySteps`) and moves the quirk by the full string vector, here 50 m, to a point outside the world; a delta electron was then created there. The same events run without the decay process, and with c*tau = 1e9 mm, did not crash. Fix in `QuirkTransportation`: a forced step that ends outside the world kills the quirk. The actual source of the tiny hIoni step was not identified; the killed quirk would have left the world anyway, but its hits along the forced path are lost. I tried treating sub-tolerance steps as zero instead; that gave an infinite loop, so it is not used.
+
 ## Limits
 
 * Drell-Yan Q+Q- only: no W-mediated or neutral-pair production in the Pythia card; the neutral PDG is accepted in gun/HepMC mode only.
