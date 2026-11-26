@@ -1,0 +1,912 @@
+diff --git a/quirkcore/include/quirkcore/QuirkConfig.h b/quirkcore/include/quirkcore/QuirkConfig.h
+index c38f528..709d35a 100644
+--- a/quirkcore/include/quirkcore/QuirkConfig.h
++++ b/quirkcore/include/quirkcore/QuirkConfig.h
+@@ -4,6 +4,7 @@
+ // Quirk parameters, set by the /quirk/ macro commands; values are in Geant4 internal units.
+ 
+ #include "globals.hh"
++#include <string>
+ #include <CLHEP/Units/SystemOfUnits.h>
+ 
+ struct QuirkConfig {
+@@ -23,6 +24,13 @@ struct QuirkConfig {
+   G4bool moveTinySteps{true};                       // move quirks on sub-tolerance steps (head-on crossings)
+   G4double crossingLength{0.};                      // shorter incoming string: restart it (0: never, experimental)
+   G4bool pairProduction{false};                     // hPairProd, no Geant4 element data for PDG 17 (em0033)
++
++  // decay of the charged component Q -> Q0 + X (Q0: neutral partner of mass mass - decayDelta, PDG |pdg|+1, same
++  // string state). Off unless decayCtau > 0.
++  G4double decayCtau{0.};          // proper decay length c*tau of the charged component (<= 0: no decay)
++  G4double decayDelta{0.};         // m(Q) - m(Q0)
++  std::string decayTable;          // channel file, see QuirkDecay.h
++  G4bool decayIdentity{false};     // regression test: Q0 has the mass and charge of Q, no products
+ };
+ 
+ #endif
+diff --git a/quirkcore/include/quirkcore/QuirkDecay.h b/quirkcore/include/quirkcore/QuirkDecay.h
+new file mode 100644
+index 0000000..c78f886
+--- /dev/null
++++ b/quirkcore/include/quirkcore/QuirkDecay.h
+@@ -0,0 +1,103 @@
++#ifndef QUIRKCORE_QuirkDecay_H
++#define QUIRKCORE_QuirkDecay_H
++
++// In-flight decay of the charged component of an SU(2)-multiplet quirk, Q -> Q0 + X, with the infracolor string
++// attached: the parent track ends, a track of the neutral partner Q0 (PDG |pdg|+1, mass m - Delta) starts at the same
++// point with the recoil momentum and inherits the string state through QuirkInfracolorForce::BeginHandover; the
++// visible products X are ordinary Geant4 secondaries.
++//
++// Lifetime: exponential in proper time, implemented as a G4VDiscreteProcess with mean free path beta*gamma*c*tau
++// (memoryless, so re-sampling when a suspended quirk resumes is statistically exact).
++// Kinematics: exact two- and three-body phase space generated in the parent rest frame with numerically stable
++// momenta (M - M0 << M; Geant4's generic G4PhaseSpaceDecayChannel fails on such decays), weighted by the squared
++// matrix element of the vector-like heavy current coupled to the W* (spin-averaged heavy-fermion tensor
++// H_mn = Tr[(p0+M0) g_m (p+ + M) g_n] contracted with the lepton tensor k_a^m k_b^n + k_a^n k_b^m - g^mn k_a.k_b for
++// l nu, with (k1-k2)^m (k1-k2)^n for pi pi0, constant for a single pion). The heavy neutral quirk recoils, so energy
++// and momentum are conserved exactly. At most two visible products per channel.
++//
++// Channel file (/quirk/decayTable), one channel per line, '#' comments:
++//     <weight> <daughter name> [<daughter name> ...]
++// written for the particle with positive PDG code (charge = /quirk/charge); the antiquirk decays to the conjugate
++// channels. The neutral quirk is added automatically. Example for charge -1:
++//     0.82  pi-
++//     0.10  e-  anti_nu_e
++//     0.08  mu- anti_nu_mu
++
++#include "quirkcore/QuirkConfig.h"
++
++#include "G4VDiscreteProcess.hh"
++#include "G4ParticleChange.hh"
++#include "G4VUserTrackInformation.hh"
++#include "G4LorentzVector.hh"
++#include "G4ThreeVector.hh"
++
++#include <memory>
++#include <vector>
++
++class G4ParticleDefinition;
++
++// truth record of one decay, per thread and event (filled by QuirkDecay, read by the user actions)
++struct QuirkDecayRecord {
++  struct Product {
++    G4int pdg;
++    G4LorentzVector p;
++  };
++  G4int side{0};  // 0: quirk (PDG > 0), 1: antiquirk
++  G4int parentPdg{0};
++  G4ThreeVector x;
++  G4double t{0};
++  G4LorentzVector parent, daughter;
++  std::vector<Product> products;
++};
++
++class QuirkDecayLog {
++public:
++  static QuirkDecayLog& instance();
++  std::vector<QuirkDecayRecord> records;
++  void clear() { records.clear(); }
++};
++
++// attached to the visible decay products so that the user actions can record their hits
++class QuirkDecayProductInfo : public G4VUserTrackInformation {
++public:
++  QuirkDecayProductInfo(G4int record, G4int index) : record(record), index(index) {}
++  G4int record, index;
++};
++
++class QuirkDecay : public G4VDiscreteProcess {
++public:
++  explicit QuirkDecay(const QuirkConfig& cfg);
++  ~QuirkDecay() override;
++
++  G4bool IsApplicable(const G4ParticleDefinition& p) override;
++  G4VParticleChange* PostStepDoIt(const G4Track& track, const G4Step& step) override;
++
++  // pdg of the neutral partner of the quirk with PDG code pdg
++  static G4int neutralPdg(G4int pdg) { return pdg > 0 ? pdg + 1 : pdg - 1; }
++
++protected:
++  G4double GetMeanFreePath(const G4Track& track, G4double previousStepSize, G4ForceCondition* condition) override;
++
++private:
++  struct Channel {
++    G4double weight;
++    std::vector<G4String> names;                       // products, particle convention
++    std::vector<const G4ParticleDefinition*> prod[2];  // [0] quirk, [1] antiquirk (conjugates)
++  };
++  void loadTable(const G4String& file, const QuirkConfig& cfg);
++  // products (pdg, 4-momentum) in the parent rest frame plus the neutral quirk's 4-momentum
++  static void generate(G4double M, const G4ParticleDefinition* neutral, const std::vector<const G4ParticleDefinition*>& vis,
++                       std::vector<G4LorentzVector>& pvis, G4LorentzVector& pneutral);
++  // squared matrix element (up to a constant) of a configuration in the parent rest frame
++  static G4double weight(G4double M, G4double M0, const G4ParticleDefinition* da, const G4ParticleDefinition* db,
++                         const G4LorentzVector& a, const G4LorentzVector& b, G4double bound[1]);
++
++  G4ParticleChange m_change;
++  G4double m_ctau;
++  G4int m_verbose;
++  G4bool m_identity;
++  std::vector<Channel> m_channels;
++  G4double m_sumWeight{0.};
++};
++
++#endif
+diff --git a/quirkcore/include/quirkcore/QuirkInfracolorForce.h b/quirkcore/include/quirkcore/QuirkInfracolorForce.h
+index d78d257..2b39aa3 100644
+--- a/quirkcore/include/quirkcore/QuirkInfracolorForce.h
++++ b/quirkcore/include/quirkcore/QuirkInfracolorForce.h
+@@ -25,6 +25,11 @@ public:
+ 
+   void StartTracking(const G4Track* dest);
+   void TrackKilled() { m_killed = true; }
++
++  // the quirk changes species in flight (decay Q -> Q0 + X): the parent track ends without freeing the partner and
++  // the daughter track, whose first StartTracking consumes the flag, continues with the same string state
++  void BeginHandover() { m_handover = true; }
++  G4bool IsHandingOver() const { return m_handover; }
+   G4bool IsSourceAlive() const { return !m_reactionForce->m_killed; }
+   G4bool IsSourceInitialized() const { return m_reactionForce->m_initialized; }
+   G4bool HasNextStringVector() const { return !m_stringVectors.empty(); }
+@@ -64,6 +69,7 @@ private:
+   G4LorentzVector m_initU;                         // initial 4-velocity of the quirk
+   G4bool m_initialized{false};                     // m_initU is set
+   G4bool m_killed{false};                          // quirk was killed
++  G4bool m_handover{false};                        // parent track ended in a decay, daughter continues
+   G4bool m_firstStep{false};                       // first step uses m_firstString
+   std::deque<QuirkStringVector> m_stringVectors;   // vectors moving towards this quirk
+   QuirkStringVector m_firstString;                 // vector used for the first step
+diff --git a/quirkcore/include/quirkcore/QuirkPhysics.h b/quirkcore/include/quirkcore/QuirkPhysics.h
+index 5afb50c..6a9c7f4 100644
+--- a/quirkcore/include/quirkcore/QuirkPhysics.h
++++ b/quirkcore/include/quirkcore/QuirkPhysics.h
+@@ -38,8 +38,11 @@ private:
+   const G4bool m_pairProduction;
+   const G4double m_crossingLength;
+   const G4double m_stopThreshold;
++  const QuirkConfig m_cfg;
+   Quirk* m_quirk{nullptr};
+   Quirk* m_antiQuirk{nullptr};
++  Quirk* m_quirk0{nullptr};      // neutral partner (decay enabled)
++  Quirk* m_antiQuirk0{nullptr};
+ };
+ 
+ #endif
+diff --git a/quirkcore/src/QuirkDecay.cc b/quirkcore/src/QuirkDecay.cc
+new file mode 100644
+index 0000000..7f72902
+--- /dev/null
++++ b/quirkcore/src/QuirkDecay.cc
+@@ -0,0 +1,278 @@
++#include "quirkcore/QuirkDecay.h"
++#include "quirkcore/Quirk.h"
++#include "quirkcore/QuirkStringStore.h"
++
++#include "G4DynamicParticle.hh"
++#include "G4Exception.hh"
++#include "G4ParticleTable.hh"
++#include "G4Step.hh"
++#include "G4Track.hh"
++#include "G4DecayProcessType.hh"
++#include "Randomize.hh"
++#include <CLHEP/Units/PhysicalConstants.h>
++
++#include <fstream>
++#include <sstream>
++
++QuirkDecayLog& QuirkDecayLog::instance() {
++  static thread_local QuirkDecayLog log;
++  return log;
++}
++
++namespace {
++  const G4ParticleDefinition* find(const G4String& name) {
++    const G4ParticleDefinition* d = G4ParticleTable::GetParticleTable()->FindParticle(name);
++    if (nullptr == d) {
++      G4Exception("QuirkDecay", "QuirkDecayUnknownParticle", FatalException, ("unknown particle " + name).c_str());
++    }
++    return d;
++  }
++  G4String conjugate(const G4String& name) {
++    const G4ParticleDefinition* d = find(name);
++    const G4ParticleDefinition* a = G4ParticleTable::GetParticleTable()->FindParticle(d->GetAntiPDGEncoding());
++    return (nullptr == a) ? name : a->GetParticleName();
++  }
++}  // namespace
++
++QuirkDecay::QuirkDecay(const QuirkConfig& cfg)
++    : G4VDiscreteProcess("QuirkDecay", fDecay), m_ctau(cfg.decayCtau), m_verbose(cfg.verbose), m_identity(cfg.decayIdentity) {
++  SetProcessSubType(DECAY);
++  if (!m_identity && !cfg.decayTable.empty())
++    loadTable(cfg.decayTable, cfg);
++  if (!m_identity && m_channels.empty()) {
++    G4Exception("QuirkDecay", "QuirkDecayNoChannels", FatalException,
++                "decay enabled but no channel table (/quirk/decayTable) and not in identity test mode");
++  }
++}
++
++QuirkDecay::~QuirkDecay() = default;
++
++void QuirkDecay::loadTable(const G4String& file, const QuirkConfig& cfg) {
++  std::ifstream in(file);
++  if (!in) {
++    G4Exception("QuirkDecay", "QuirkDecayTable", FatalException, ("cannot read decay table " + file).c_str());
++  }
++  for (std::string line; std::getline(in, line);) {
++    if (auto h = line.find('#'); h != std::string::npos)
++      line.erase(h);
++    std::istringstream ss(line);
++    double w;
++    if (!(ss >> w))
++      continue;
++    Channel ch;
++    ch.weight = w;
++    for (std::string n; ss >> n;)
++      ch.names.push_back(n);
++    if (ch.names.empty() || ch.names.size() > 2 || w <= 0.)
++      G4Exception("QuirkDecay", "QuirkDecayTable", FatalException, ("bad decay table line: " + line).c_str());
++    // charge conservation for the particle convention: the neutral partner carries no charge
++    double q = 0.;
++    for (auto& n : ch.names)
++      q += find(n)->GetPDGCharge();
++    if (std::abs(q - cfg.charge) > 1e-6 * CLHEP::eplus) {
++      G4Exception("QuirkDecay", "QuirkDecayCharge", FatalException,
++                  ("channel violates charge conservation (quirk charge " + std::to_string(cfg.charge / CLHEP::eplus) +
++                   "): " + line).c_str());
++    }
++    for (auto& n : ch.names) {
++      ch.prod[0].push_back(find(n));
++      ch.prod[1].push_back(find(conjugate(n)));
++    }
++    m_sumWeight += w;
++    m_channels.push_back(std::move(ch));
++  }
++}
++
++namespace {
++  // Kallen function of (M^2, M0^2, s) written with the exact mass difference D2 = M^2 - M0^2 (no cancellation)
++  inline G4double lambdaQ(G4double D2, G4double M0sq, G4double s) { return (D2 - s) * (D2 - s) - 4. * M0sq * s; }
++  inline G4double lambdaV(G4double s, G4double ma2, G4double mb2) {
++    return (s - ma2 - mb2) * (s - ma2 - mb2) - 4. * ma2 * mb2;
++  }
++  G4ThreeVector isotropic() {
++    const G4double c = 2. * G4UniformRand() - 1., ph = CLHEP::twopi * G4UniformRand(), s = std::sqrt(std::max(0., 1. - c * c));
++    return G4ThreeVector(s * std::cos(ph), s * std::sin(ph), c);
++  }
++}  // namespace
++
++namespace {
++  enum Kind { kConst, kLepton, kPiPi };
++  Kind kindOf(const G4ParticleDefinition* a, const G4ParticleDefinition* b) {
++    auto is = [](const G4ParticleDefinition* d, std::initializer_list<int> ids) {
++      for (int i : ids)
++        if (std::abs(d->GetPDGEncoding()) == i) return true;
++      return false;
++    };
++    if (b == nullptr) return kConst;
++    const bool nu = is(a, {12, 14, 16}) || is(b, {12, 14, 16});
++    if (nu) return kLepton;
++    if (is(a, {111, 211}) && is(b, {111, 211})) return kPiPi;
++    return kConst;
++  }
++}  // namespace
++
++// |M|^2 up to a constant, and in bound[0] an upper bound of it for the same channel
++G4double QuirkDecay::weight(G4double M, G4double M0, const G4ParticleDefinition* da, const G4ParticleDefinition* db,
++                            const G4LorentzVector& a, const G4LorentzVector& b, G4double bound[1]) {
++  const Kind k = kindOf(da, db);
++  const G4double Emax = (M - M0) + 0.5 * (M - M0) * (M - M0) / M;  // generous upper bound of any visible energy
++  const G4double E0 = M0;
++  const G4ThreeVector pq = -(a.vect() + b.vect());  // neutral quirk momentum
++  const G4double E0act = std::sqrt(pq.mag2() + M0 * M0);
++  if (k == kLepton) {
++    const G4double p0a = E0act * a.e() - pq.dot(a.vect());
++    const G4double p0b = E0act * b.e() - pq.dot(b.vect());
++    const G4double kk = a.e() * b.e() - a.vect().dot(b.vect());
++    bound[0] = 16. * M * Emax * Emax * (E0 + 2. * Emax);
++    return 8. * (p0a * M * b.e() + p0b * M * a.e() - M0 * M * kk);
++  }
++  if (k == kPiPi) {
++    const G4LorentzVector d = a - b;
++    const G4double P = E0act * M;  // p0.p+ in the parent rest frame
++    const G4double p0d = E0act * d.e() - pq.dot(d.vect());
++    bound[0] = 4. * (2. * M * Emax * (E0 * Emax + 4. * Emax * Emax) + 2. * Emax * Emax * (M - M0) * (M - M0)) * 1.5;
++    return 4. * (2. * p0d * M * d.e() - d.m2() * (P - M0 * M));
++  }
++  bound[0] = 1.;
++  return 1.;
++}
++
++void QuirkDecay::generate(G4double M, const G4ParticleDefinition* neutral, const std::vector<const G4ParticleDefinition*>& vis,
++                          std::vector<G4LorentzVector>& pvis, G4LorentzVector& pneutral) {
++  const G4double M0 = neutral->GetPDGMass();
++  const G4double D2 = (M - M0) * (M + M0), M0sq = M0 * M0;
++  pvis.clear();
++  const G4ThreeVector n = isotropic();
++  if (vis.size() == 1) {
++    const G4double ma = vis[0]->GetPDGMass();
++    const G4double lam = lambdaQ(D2, M0sq, ma * ma);
++    const G4double p = std::sqrt(std::max(lam, 0.)) / (2. * M);
++    pvis.emplace_back(p * n, std::sqrt(p * p + ma * ma));
++    pneutral = G4LorentzVector(-p * n, std::sqrt(p * p + M0sq));
++    return;
++  }
++  // three-body: invariant mass^2 s of the visible pair with density sqrt(lambdaQ) sqrt(lambdaV) / s
++  const G4double ma = vis[0]->GetPDGMass(), mb = vis[1]->GetPDGMass();
++  const G4double smin = (ma + mb) * (ma + mb), smax = (M - M0) * (M - M0);
++  auto f = [&](G4double s) {
++    const G4double lq = lambdaQ(D2, M0sq, s), lv = lambdaV(s, ma * ma, mb * mb);
++    return (lq > 0. && lv > 0.) ? std::sqrt(lq * lv) / s : 0.;
++  };
++  G4double fmax = 0.;
++  for (int i = 0; i <= 400; ++i)
++    fmax = std::max(fmax, f(smin + (smax - smin) * i / 400.));
++  fmax *= 1.05;
++  const G4double Mphys = M;
++  G4LorentzVector a, b;
++  G4double p = 0.;
++  for (int trial = 0; trial < 1000000; ++trial) {
++    G4double s = smin;
++    for (int t2 = 0; t2 < 100000; ++t2) {
++      s = smin + (smax - smin) * G4UniformRand();
++      if (fmax * G4UniformRand() < f(s))
++        break;
++    }
++    p = std::sqrt(std::max(lambdaQ(D2, M0sq, s), 0.)) / (2. * Mphys);  // recoil momentum of Q0
++    const G4double Eab = std::sqrt(s + p * p);
++    const G4double k = std::sqrt(std::max(lambdaV(s, ma * ma, mb * mb), 0.)) / (2. * std::sqrt(s));
++    const G4ThreeVector m = isotropic();
++    a = G4LorentzVector(k * m, std::sqrt(k * k + ma * ma));
++    b = G4LorentzVector(-k * m, std::sqrt(k * k + mb * mb));
++    const G4ThreeVector beta = (p / Eab) * n;
++    a.boost(beta);
++    b.boost(beta);
++    G4double bound[1];
++    const G4double w = weight(M, M0, vis[0], vis[1], a, b, bound);
++    if (w > bound[0]) {
++      G4Exception("QuirkDecay::generate", "QuirkDecayBound", JustWarning, "matrix-element bound exceeded");
++    }
++    if (G4UniformRand() * bound[0] < w)
++      break;
++  }
++  pvis = {a, b};
++  pneutral = G4LorentzVector(-(a.vect() + b.vect()), std::sqrt((a.vect() + b.vect()).mag2() + M0sq));
++}
++
++G4bool QuirkDecay::IsApplicable(const G4ParticleDefinition& p) {
++  return Quirk::isQuirk(&p) && p.GetPDGCharge() != 0.;
++}
++
++G4double QuirkDecay::GetMeanFreePath(const G4Track& track, G4double, G4ForceCondition* condition) {
++  *condition = NotForced;
++  if (m_ctau <= 0.)
++    return DBL_MAX;
++  const G4DynamicParticle* dp = track.GetDynamicParticle();
++  // lab decay length beta*gamma*c*tau; a quirk at rest (1 eV kept by keepStopped) still ages in proper time
++  const G4double bg = dp->GetTotalMomentum() / dp->GetMass();
++  return std::max(bg, 1e-12) * m_ctau;
++}
++
++G4VParticleChange* QuirkDecay::PostStepDoIt(const G4Track& track, const G4Step&) {
++  m_change.Initialize(track);
++  const G4DynamicParticle* dp = track.GetDynamicParticle();
++  const G4int pdg = track.GetDefinition()->GetPDGEncoding();
++  const G4int side = pdg > 0 ? 0 : 1;
++  const G4double mParent = dp->GetMass();
++  const G4ParticleDefinition* neutral = G4ParticleTable::GetParticleTable()->FindParticle(neutralPdg(pdg));
++
++  std::vector<const G4ParticleDefinition*> visDefs;
++  std::vector<G4LorentzVector> pvis;
++  G4LorentzVector pneutral;
++  const G4LorentzVector parent = dp->Get4Momentum();
++  if (m_identity) {
++    // test mode: the same quirk, relabelled as the neutral species, nothing else
++    pneutral = parent;
++  } else {
++    G4double u = G4UniformRand() * m_sumWeight, acc = 0.;
++    std::size_t k = 0;
++    for (; k + 1 < m_channels.size(); ++k) {
++      acc += m_channels[k].weight;
++      if (u < acc)
++        break;
++    }
++    visDefs = m_channels[k].prod[side];
++    generate(mParent, neutral, visDefs, pvis, pneutral);  // parent rest frame
++    const G4ThreeVector beta = parent.boostVector();
++    pneutral.boost(beta);
++    for (auto& p : pvis)
++      p.boost(beta);
++  }
++
++  QuirkDecayLog& log = QuirkDecayLog::instance();
++  QuirkDecayRecord rec;
++  rec.side = side;
++  rec.parentPdg = pdg;
++  rec.x = track.GetPosition();
++  rec.t = track.GetGlobalTime();
++  rec.parent = parent;
++  rec.daughter = pneutral;
++  const G4int recIndex = static_cast<G4int>(log.records.size());
++
++  m_change.SetNumberOfSecondaries(1 + static_cast<G4int>(pvis.size()));
++  G4LorentzVector sum = pneutral;
++  {
++    auto* d = new G4DynamicParticle(neutral, pneutral);
++    m_change.AddSecondary(new G4Track(d, track.GetGlobalTime(), track.GetPosition()));
++  }
++  for (std::size_t i = 0; i < pvis.size(); ++i) {
++    sum += pvis[i];
++    rec.products.push_back({visDefs[i]->GetPDGEncoding(), pvis[i]});
++    auto* t = new G4Track(new G4DynamicParticle(visDefs[i], pvis[i]), track.GetGlobalTime(), track.GetPosition());
++    t->SetUserInformation(new QuirkDecayProductInfo(recIndex, static_cast<G4int>(i)));
++    m_change.AddSecondary(t);
++  }
++  if (m_verbose > 0) {
++    const G4LorentzVector miss = sum - parent;
++    G4cout << "QuirkDecay: side " << side << " at " << track.GetPosition() / CLHEP::cm << " cm, t = "
++           << track.GetGlobalTime() / CLHEP::ns << " ns, " << rec.products.size() << " visible products, |dP| = "
++           << miss.vect().mag() / CLHEP::keV << " keV, |dE| = " << std::abs(miss.e()) / CLHEP::keV << " keV" << G4endl;
++  }
++  log.records.push_back(std::move(rec));
++
++  // the string stays: the neutral daughter continues it
++  QuirkStringStore::instance().stringFor(pdg).BeginHandover();
++
++  m_change.ProposeTrackStatus(fStopAndKill);
++  m_change.ProposeLocalEnergyDeposit(0.);
++  return &m_change;
++}
+diff --git a/quirkcore/src/QuirkInfracolorForce.cc b/quirkcore/src/QuirkInfracolorForce.cc
+index d16e5cd..a41b9e0 100644
+--- a/quirkcore/src/QuirkInfracolorForce.cc
++++ b/quirkcore/src/QuirkInfracolorForce.cc
+@@ -36,6 +36,14 @@ void QuirkInfracolorForce::StartTracking(const G4Track* dest) {
+   if (dest->GetCurrentStepNumber() != 0)
+     return;
+ 
++  // daughter of a decaying quirk: the string state, partner and kinematics carry on
++  if (m_handover) {
++    m_handover = false;
++    const G4LorentzVector p = dest->GetDynamicParticle()->Get4Momentum();
++    m_lastU = p / p.m();
++    return;
++  }
++
+   // stale state from an earlier event: clear both ends together
+   if (m_initialized || m_killed || m_reactionForce->m_killed) {
+     Clear();
+@@ -85,6 +93,7 @@ void QuirkInfracolorForce::Clear() {
+   m_initU.set(0, 0, 0, 0);
+   m_initialized = false;
+   m_killed = false;
++  m_handover = false;
+   m_firstStep = false;
+   m_stringVectors.clear();
+   m_firstString.set(0, 0, 0, 0);
+diff --git a/quirkcore/src/QuirkMessenger.cc b/quirkcore/src/QuirkMessenger.cc
+index 3ebc6c6..f14a262 100644
+--- a/quirkcore/src/QuirkMessenger.cc
++++ b/quirkcore/src/QuirkMessenger.cc
+@@ -5,6 +5,7 @@
+ #include "G4UIcmdWithADoubleAndUnit.hh"
+ #include "G4UIcmdWithAnInteger.hh"
+ #include "G4UIcmdWithABool.hh"
++#include "G4UIcmdWithAString.hh"
+ #include "G4Exception.hh"
+ #include "G4ios.hh"
+ 
+@@ -37,6 +38,8 @@ QuirkMessenger::QuirkMessenger(QuirkConfig& cfg) : m_cfg(cfg) {
+   add(dimCmd(this, "/quirk/maxRadius", "Envelope radius, quirks killed outside (<= 0: never).", "cm", "Length"));
+   add(dimCmd(this, "/quirk/maxZ", "Envelope half length, quirks killed outside (<= 0: never).", "cm", "Length"));
+   add(dimCmd(this, "/quirk/stopThreshold", "Partner kinetic energy below which the pair counts as stopped.", "MeV", "Energy"));
++  add(dimCmd(this, "/quirk/decayCtau", "Proper decay length c*tau of the charged component (<= 0: stable).", "mm", "Length"));
++  add(dimCmd(this, "/quirk/decayDelta", "Mass splitting m(Q) - m(Q0) of the decay Q -> Q0 + X.", "MeV", "Energy"));
+   add(dimCmd(this, "/quirk/crossingLength", "Restart the string below this length (0: never, experimental).", "mm", "Length"));
+   {
+     auto c = withStates(new G4UIcmdWithADouble("/quirk/charge", this));
+@@ -65,7 +68,12 @@ QuirkMessenger::QuirkMessenger(QuirkConfig& cfg) : m_cfg(cfg) {
+     c->SetGuidance("Verbosity.");
+     add(c);
+   }
+-  for (const char* name : {"/quirk/keepStopped", "/quirk/moveTinySteps", "/quirk/pairProduction"}) {
++  {
++    auto c = withStates(new G4UIcmdWithAString("/quirk/decayTable", this));
++    c->SetGuidance("Decay channel file (see QuirkDecay.h).");
++    add(c);
++  }
++  for (const char* name : {"/quirk/keepStopped", "/quirk/moveTinySteps", "/quirk/pairProduction", "/quirk/decayIdentity"}) {
+     auto c = withStates(new G4UIcmdWithABool(name, this));
+     c->SetGuidance("Boolean switch, see QuirkConfig.h.");
+     add(c);
+@@ -114,6 +122,14 @@ void QuirkMessenger::SetNewValue(G4UIcommand* cmd, G4String value) {
+     m_cfg.moveTinySteps = G4UIcommand::ConvertToBool(value);
+   else if (n == "pairProduction")
+     m_cfg.pairProduction = G4UIcommand::ConvertToBool(value);
++  else if (n == "decayIdentity")
++    m_cfg.decayIdentity = G4UIcommand::ConvertToBool(value);
++  else if (n == "decayCtau")
++    m_cfg.decayCtau = d();
++  else if (n == "decayDelta")
++    m_cfg.decayDelta = d();
++  else if (n == "decayTable")
++    m_cfg.decayTable = value;
+ }
+ 
+ G4String QuirkMessenger::GetCurrentValue(G4UIcommand* cmd) {
+@@ -151,5 +167,13 @@ G4String QuirkMessenger::GetCurrentValue(G4UIcommand* cmd) {
+     return G4UIcommand::ConvertToString(m_cfg.moveTinySteps);
+   if (n == "pairProduction")
+     return G4UIcommand::ConvertToString(m_cfg.pairProduction);
++  if (n == "decayIdentity")
++    return G4UIcommand::ConvertToString(m_cfg.decayIdentity);
++  if (n == "decayCtau")
++    return u(m_cfg.decayCtau, "mm");
++  if (n == "decayDelta")
++    return u(m_cfg.decayDelta, "MeV");
++  if (n == "decayTable")
++    return m_cfg.decayTable;
+   return "";
+ }
+diff --git a/quirkcore/src/QuirkPhysics.cc b/quirkcore/src/QuirkPhysics.cc
+index 9a37819..45d27de 100644
+--- a/quirkcore/src/QuirkPhysics.cc
++++ b/quirkcore/src/QuirkPhysics.cc
+@@ -1,5 +1,6 @@
+ #include "quirkcore/QuirkPhysics.h"
+ #include "quirkcore/Quirk.h"
++#include "quirkcore/QuirkDecay.h"
+ #include "quirkcore/QuirkStringStore.h"
+ #include "quirkcore/QuirkTransportation.h"
+ #include "quirkcore/QuirkWatcher.h"
+@@ -44,13 +45,25 @@ QuirkPhysics::QuirkPhysics(const QuirkConfig& p)
+       m_pairProduction(p.pairProduction),
+       // must stay well below the first string, else the restart repeats at production
+       m_crossingLength(std::min(p.crossingLength, 0.1 * m_firstStringLength)),
+-      m_stopThreshold(p.stopThreshold) {
++      m_stopThreshold(p.stopThreshold),
++      m_cfg(p) {
+   if (m_mass <= 0. || m_stringForce <= 0. || m_maxBoost <= 0. || m_maxBoost >= 1.) {
+     G4ExceptionDescription ed;
+     ed << "QuirkPhysics: invalid parameters QuirkMass= " << m_mass / CLHEP::GeV
+        << " GeV, QuirkLambda= " << p.lambda / CLHEP::eV << " eV, QuirkMaxBoost= " << m_maxBoost;
+     G4Exception("QuirkPhysics::QuirkPhysics", "QuirkConfiguration", FatalException, ed);
+   }
++  if (p.decayCtau > 0.) {
++    if (p.decayDelta <= 0. && !p.decayIdentity)
++      G4Exception("QuirkPhysics::QuirkPhysics", "QuirkConfiguration", FatalException, "decayCtau > 0 needs decayDelta > 0");
++    if (p.decayDelta >= p.mass)
++      G4Exception("QuirkPhysics::QuirkPhysics", "QuirkConfiguration", FatalException, "decayDelta must be below the quirk mass");
++    if (!p.decayIdentity && std::abs(std::abs(p.charge / CLHEP::eplus) - 1.) > 1e-6)
++      G4Exception("QuirkPhysics::QuirkPhysics", "QuirkConfiguration", FatalException, "decay needs |charge| = 1 e");
++    G4cout << "QuirkPhysics: charged component decays, c tau " << p.decayCtau / CLHEP::mm << " mm, Delta m "
++           << p.decayDelta / CLHEP::MeV << " MeV, neutral partner PDG " << QuirkDecay::neutralPdg(std::abs(p.pdg))
++           << (p.decayIdentity ? " (identity test mode)" : "") << G4endl;
++  }
+   G4cout << "QuirkPhysics: PDG " << m_pdg << " mass " << m_mass / CLHEP::GeV << " GeV, charge "
+          << m_charge / CLHEP::eplus << " e, Lambda " << std::sqrt(m_stringForce * CLHEP::hbarc) / CLHEP::eV
+          << " eV (string force " << m_stringForce / (CLHEP::MeV / CLHEP::mm) << " MeV/mm), first string length "
+@@ -77,13 +90,29 @@ void QuirkPhysics::ConstructParticle() {
+   }
+   m_quirk = new Quirk("quirk", m_mass, m_charge, m_pdg);
+   m_antiQuirk = new Quirk("antiquirk", m_mass, -m_charge, -m_pdg);
++  if (m_cfg.decayCtau > 0.) {
++    const G4int pdg0 = QuirkDecay::neutralPdg(m_pdg);
++    for (int pdg : {pdg0, -pdg0}) {
++      if (nullptr != table->FindParticle(pdg)) {
++        G4ExceptionDescription ed;
++        ed << "QuirkPhysics: PDG code " << pdg << " for the neutral partner is already defined";
++        G4Exception("QuirkPhysics::ConstructParticle", "QuirkConfiguration", FatalException, ed);
++      }
++    }
++    const G4double m0 = m_cfg.decayIdentity ? m_mass : m_mass - m_cfg.decayDelta;
++    const G4double q0 = m_cfg.decayIdentity ? m_charge : 0.;
++    m_quirk0 = new Quirk("quirk0", m0, q0, pdg0);
++    m_antiQuirk0 = new Quirk("antiquirk0", m0, -q0, -pdg0);
++  }
+ }
+ 
+ void QuirkPhysics::ConstructProcess() {
+   // string state of this thread
+   QuirkStringStore::instance().configure(m_stringForce, m_firstStringLength, m_maxBoost, m_maxMergeT, m_maxMergeMag);
+ 
+-  for (Quirk* q : {m_quirk, m_antiQuirk}) {
++  for (Quirk* q : {m_quirk, m_antiQuirk, m_quirk0, m_antiQuirk0}) {
++    if (nullptr == q)
++      continue;
+     G4ProcessManager* pmanager = q->GetProcessManager();
+     if (nullptr == pmanager) {
+       G4Exception("QuirkPhysics::ConstructProcess", "QuirkConfiguration", FatalException,
+@@ -96,13 +125,20 @@ void QuirkPhysics::ConstructProcess() {
+     auto transport = new QuirkTransportation(m_verbose, m_moveTinySteps, m_crossingLength);
+     transport->SetThresholdTrials(m_looperTrials);
+     pmanager->AddProcess(transport, -1, 0, 0);
+-    pmanager->AddProcess(new G4hMultipleScattering, -1, 1, 1);
+-    pmanager->AddProcess(new G4hIonisation, -1, 2, 2);
+-    pmanager->AddProcess(new G4hBremsstrahlung, -1, 3, 3);
+-    if (m_pairProduction) {
+-      pmanager->AddProcess(new G4hPairProduction, -1, 4, 4);
++    // the neutral partner of a decaying quirk has no electromagnetic energy loss (identity test mode: it keeps the
++    // charge of the parent and its processes, to compare against the undecayed trajectory)
++    if (q->GetPDGCharge() != 0.) {
++      pmanager->AddProcess(new G4hMultipleScattering, -1, 1, 1);
++      pmanager->AddProcess(new G4hIonisation, -1, 2, 2);
++      pmanager->AddProcess(new G4hBremsstrahlung, -1, 3, 3);
++      if (m_pairProduction) {
++        pmanager->AddProcess(new G4hPairProduction, -1, 4, 4);
++      }
++    }
++    if (m_cfg.decayCtau > 0. && (q == m_quirk || q == m_antiQuirk)) {
++      pmanager->AddProcess(new QuirkDecay(m_cfg), -1, -1, 5);
+     }
+-    pmanager->AddProcess(new QuirkWatcher(m_rMax, m_zMax, m_keepStopped, m_stopThreshold), -1, -1, 5);
++    pmanager->AddProcess(new QuirkWatcher(m_rMax, m_zMax, m_keepStopped, m_stopThreshold), -1, -1, 6);
+     if (m_verbose > 1) {
+       pmanager->DumpInfo();
+     }
+diff --git a/quirkcore/src/QuirkTransportation.cc b/quirkcore/src/QuirkTransportation.cc
+index 52685a4..6d5d2ea 100644
+--- a/quirkcore/src/QuirkTransportation.cc
++++ b/quirkcore/src/QuirkTransportation.cc
+@@ -280,7 +280,9 @@ void QuirkTransportation::StartTracking(G4Track* aTrack) {
+ void QuirkTransportation::EndTracking() {
+   // killed by anything (envelope, time cut, user actions): the partner must not wait for it
+   if (nullptr != fCurrentTrack && !QuirkTrackStatus::isSuspended(fCurrentTrack)) {
+-    QuirkStringStore::instance().stringFor(fCurrentTrack->GetDefinition()->GetPDGEncoding()).TrackKilled();
++    QuirkInfracolorForce& s = QuirkStringStore::instance().stringFor(fCurrentTrack->GetDefinition()->GetPDGEncoding());
++    if (!s.IsHandingOver())  // a decaying quirk hands its string to the daughter
++      s.TrackKilled();
+   }
+   fCurrentTrack = nullptr;
+   G4VProcess::EndTracking();
+diff --git a/quirkcore/src/QuirkWatcher.cc b/quirkcore/src/QuirkWatcher.cc
+index 4569233..3677443 100644
+--- a/quirkcore/src/QuirkWatcher.cc
++++ b/quirkcore/src/QuirkWatcher.cc
+@@ -82,7 +82,7 @@ G4VParticleChange* QuirkWatcher::PostStepDoIt(const G4Track& track, const G4Step
+       }
+     }
+   }
+-  if (stat == fStopAndKill || stat == fKillTrackAndSecondaries) {
++  if ((stat == fStopAndKill || stat == fKillTrackAndSecondaries) && !string.IsHandingOver()) {
+     string.TrackKilled();
+   }
+ 
+diff --git a/quirksim/include/Actions.hh b/quirksim/include/Actions.hh
+index eed5226..c03048a 100644
+--- a/quirksim/include/Actions.hh
++++ b/quirksim/include/Actions.hh
+@@ -26,6 +26,9 @@ struct OutBuffers {
+   // events ntuple
+   G4int evt, genEvt, nCross;
+   G4double vx, vy, vz, cpu, wall, maxSep;
++  // decay truth: one record per decay (dec_*), one row per visible product (dp_*)
++  std::vector<G4double> q_dec, q_xd, q_yd, q_zd, q_td, dec_side, dec_x, dec_y, dec_z, dec_t, dec_ppx, dec_ppy, dec_ppz,
++      dec_pe, dec_dpx, dec_dpy, dec_dpz, dec_de, dp_rec, dp_pdg, dp_px, dp_py, dp_pz, dp_e;
+   std::vector<G4double> q_pdg, q_px0, q_py0, q_pz0, q_e0, q_x0, q_y0, q_z0, q_xe, q_ye, q_ze, q_te, q_pxe, q_pye,
+       q_pze, q_ee, q_steps, q_susp, q_edep, q_path, q_reason, q_tExit, q_edepDet, eDet, eDetSens;
+   std::vector<G4int> h_q, h_vol, h_det, h_layer, h_nsteps;
+@@ -62,6 +65,9 @@ public:
+     G4int reason{kAlive};
+     std::vector<G4double> tExit, edepDet;
+     G4int openHit{-1}, openVol{-1};
++    G4bool decayed{false};
++    G4ThreeVector xDec;
++    G4double tDec{0};
+   };
+   struct Hit {
+     G4int q, vol, nsteps{0};
+@@ -80,6 +86,8 @@ public:
+   G4double maxSep{0};
+   G4int nCross{0}, crossSign{0};
+   long stepCount[2]{0, 0};
++  // open hit (index, volume) of each decay product track
++  std::unordered_map<G4int, std::pair<G4int, G4int>> productHit;
+ 
+ private:
+   RunAction* m_run;
+@@ -94,6 +102,7 @@ public:
+ 
+ private:
+   void quirkStep(const G4Step* step, int i);
++  void productStep(const G4Step* step, const class QuirkDecayProductInfo* info);
+   EventAction* m_ev;
+ };
+ 
+diff --git a/quirksim/src/Actions.cc b/quirksim/src/Actions.cc
+index c465ab7..fc4c401 100644
+--- a/quirksim/src/Actions.cc
++++ b/quirksim/src/Actions.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "quirkcore/Quirk.h"
+ #include "quirkcore/QuirkStringStore.h"
++#include "quirkcore/QuirkDecay.h"
+ #include "quirkcore/QuirkTrackStatus.h"
+ 
+ #include "G4AnalysisManager.hh"
+@@ -37,7 +38,9 @@ namespace {
+ }  // namespace
+ 
+ void OutBuffers::clear() {
+-  for (auto* v : {&q_pdg, &q_px0, &q_py0, &q_pz0, &q_e0, &q_x0, &q_y0, &q_z0, &q_xe, &q_ye, &q_ze, &q_te, &q_pxe,
++  for (auto* v : {&q_dec, &q_xd, &q_yd, &q_zd, &q_td, &dec_side, &dec_x, &dec_y, &dec_z, &dec_t, &dec_ppx, &dec_ppy, &dec_ppz,
++                  &dec_pe, &dec_dpx, &dec_dpy, &dec_dpz, &dec_de, &dp_rec, &dp_pdg, &dp_px, &dp_py, &dp_pz, &dp_e,
++                  &q_pdg, &q_px0, &q_py0, &q_pz0, &q_e0, &q_x0, &q_y0, &q_z0, &q_xe, &q_ye, &q_ze, &q_te, &q_pxe,
+                   &q_pye, &q_pze, &q_ee, &q_steps, &q_susp, &q_edep, &q_path, &q_reason, &q_tExit, &q_edepDet, &eDet, &eDetSens,
+                   &h_x0, &h_y0, &h_z0, &h_t0, &h_x1, &h_y1, &h_z1, &h_t1, &h_px, &h_py, &h_pz, &h_dE, &h_len, &tw_e,
+                   &tw_eq})
+@@ -60,6 +63,12 @@ RunAction::RunAction() {
+   for (const char* n : {"vx", "vy", "vz", "cpu", "wall", "maxSep"})
+     am->CreateNtupleDColumn(n);
+   const std::pair<const char*, std::vector<G4double>*> dv[] = {
++      {"q_dec", &b.q_dec},     {"q_xd", &b.q_xd},     {"q_yd", &b.q_yd},         {"q_zd", &b.q_zd},
++      {"q_td", &b.q_td},       {"dec_side", &b.dec_side}, {"dec_x", &b.dec_x},   {"dec_y", &b.dec_y},
++      {"dec_z", &b.dec_z},     {"dec_t", &b.dec_t},   {"dec_ppx", &b.dec_ppx},   {"dec_ppy", &b.dec_ppy},
++      {"dec_ppz", &b.dec_ppz}, {"dec_pe", &b.dec_pe}, {"dec_dpx", &b.dec_dpx},   {"dec_dpy", &b.dec_dpy},
++      {"dec_dpz", &b.dec_dpz}, {"dec_de", &b.dec_de}, {"dp_rec", &b.dp_rec},     {"dp_pdg", &b.dp_pdg},
++      {"dp_px", &b.dp_px},     {"dp_py", &b.dp_py},   {"dp_pz", &b.dp_pz},       {"dp_e", &b.dp_e},
+       {"q_pdg", &b.q_pdg},     {"q_px0", &b.q_px0},   {"q_py0", &b.q_py0},       {"q_pz0", &b.q_pz0},
+       {"q_e0", &b.q_e0},       {"q_x0", &b.q_x0},     {"q_y0", &b.q_y0},         {"q_z0", &b.q_z0},
+       {"q_xe", &b.q_xe},       {"q_ye", &b.q_ye},     {"q_ze", &b.q_ze},         {"q_te", &b.q_te},
+@@ -138,6 +147,10 @@ void EventAction::BeginOfEventAction(const G4Event*) {
+     x.edepDet.assign(g.dets.size(), 0.);
+   }
+   hits.clear();
++  productHit.clear();
++  // fresh string state and decay log (a stale hand-over from an aborted event must not leak)
++  QuirkStringStore::instance().clear();
++  QuirkDecayLog::instance().clear();
+   eDet.assign(g.dets.size(), 0.);
+   eDetSens.assign(g.dets.size(), 0.);
+   towers.clear();
+@@ -160,6 +173,11 @@ void EventAction::EndOfEventAction(const G4Event* ev) {
+   const G4ThreeVector vtx = info ? info->vertex : G4ThreeVector();
+ 
+   for (const auto& x : q) {
++    b.q_dec.push_back(x.decayed ? 1 : 0);
++    b.q_xd.push_back(x.xDec.x());
++    b.q_yd.push_back(x.xDec.y());
++    b.q_zd.push_back(x.xDec.z());
++    b.q_td.push_back(x.tDec);
+     b.q_pdg.push_back(x.pdg);
+     b.q_px0.push_back(x.p0.px());
+     b.q_py0.push_back(x.p0.py());
+@@ -186,6 +204,33 @@ void EventAction::EndOfEventAction(const G4Event* ev) {
+   }
+   b.eDet = eDet;
+   b.eDetSens = eDetSens;
++  {
++    const auto& recs = QuirkDecayLog::instance().records;
++    for (size_t ir = 0; ir < recs.size(); ++ir) {
++      const auto& r = recs[ir];
++      b.dec_side.push_back(r.side);
++      b.dec_x.push_back(r.x.x());
++      b.dec_y.push_back(r.x.y());
++      b.dec_z.push_back(r.x.z());
++      b.dec_t.push_back(r.t);
++      b.dec_ppx.push_back(r.parent.px());
++      b.dec_ppy.push_back(r.parent.py());
++      b.dec_ppz.push_back(r.parent.pz());
++      b.dec_pe.push_back(r.parent.e());
++      b.dec_dpx.push_back(r.daughter.px());
++      b.dec_dpy.push_back(r.daughter.py());
++      b.dec_dpz.push_back(r.daughter.pz());
++      b.dec_de.push_back(r.daughter.e());
++      for (const auto& p : r.products) {
++        b.dp_rec.push_back(ir);
++        b.dp_pdg.push_back(p.pdg);
++        b.dp_px.push_back(p.p.px());
++        b.dp_py.push_back(p.p.py());
++        b.dp_pz.push_back(p.p.pz());
++        b.dp_e.push_back(p.p.e());
++      }
++    }
++  }
+   for (const auto& h : hits) {
+     b.h_q.push_back(h.q);
+     b.h_vol.push_back(h.vol);
+@@ -240,6 +285,8 @@ void SteppingAction::UserSteppingAction(const G4Step* step) {
+     quirkStep(step, def->GetPDGEncoding() > 0 ? 0 : 1);
+     return;
+   }
++  if (auto* pinfo = dynamic_cast<const QuirkDecayProductInfo*>(t->GetUserInformation()))
++    productStep(step, pinfo);
+   const G4double e = step->GetTotalEnergyDeposit();
+   if (e > 0) {
+     const G4StepPoint* pre = step->GetPreStepPoint();
+@@ -311,8 +358,8 @@ void SteppingAction::quirkStep(const G4Step* step, int i) {
+       Q.tExit[b] = Q.tEnd;
+   }
+ 
+-  // hits: one per continuous visit of a sensitive volume, per quirk
+-  if (vi.sens) {
++  // hits: one per continuous visit of a sensitive volume, per quirk; a neutral quirk leaves none
++  if (vi.sens && t->GetParticleDefinition()->GetPDGCharge() != 0.) {
+     if (Q.openVol != vol) {
+       EventAction::Hit h;
+       h.q = i;
+@@ -352,7 +399,14 @@ void SteppingAction::quirkStep(const G4Step* step, int i) {
+     }
+   }
+ 
+-  if (status == fStopAndKill && Q.reason == kAlive) {
++  // end of the parent track in a decay: the neutral daughter continues this quirk's record
++  const G4bool decayStep = status == fStopAndKill && QuirkStringStore::instance().stringFor(Q.pdg).IsHandingOver();
++  if (decayStep && !Q.decayed) {
++    Q.decayed = true;
++    Q.xDec = x;
++    Q.tDec = Q.tEnd;
++  }
++  if (status == fStopAndKill && Q.reason == kAlive && !decayStep) {
+     if (post->GetPhysicalVolume() == nullptr)
+       Q.reason = kWorld;
+     else if ((qc.maxRadius > 0 && x.perp() > qc.maxRadius) || (qc.maxZ > 0 && std::abs(x.z()) > qc.maxZ))
+@@ -385,12 +439,50 @@ void SteppingAction::quirkStep(const G4Step* step, int i) {
+   }
+ }
+ 
++// hits of the visible decay products (one per continuous visit of a sensitive volume), tagged
++// h_q = 100 * (decay record + 1) + product index
++void SteppingAction::productStep(const G4Step* step, const QuirkDecayProductInfo* info) {
++  const G4Track* t = step->GetTrack();
++  if (t->GetParticleDefinition()->GetPDGCharge() == 0.)
++    return;
++  const GeomInfo& g = geomInfo();
++  const G4StepPoint* pre = step->GetPreStepPoint();
++  const G4StepPoint* post = step->GetPostStepPoint();
++  const G4int vol = pre->GetPhysicalVolume()->GetCopyNo();
++  const G4int tid = t->GetTrackID();
++  auto it = m_ev->productHit.find(tid);
++  if (!g.vols[vol].sens) {
++    if (it != m_ev->productHit.end())
++      m_ev->productHit.erase(it);
++    return;
++  }
++  if (it == m_ev->productHit.end() || it->second.second != vol) {
++    EventAction::Hit h;
++    h.q = 100 * (info->record + 1) + info->index;
++    h.vol = vol;
++    h.x0 = pre->GetPosition();
++    h.t0 = pre->GetGlobalTime();
++    h.p = pre->GetMomentum();
++    m_ev->hits.push_back(h);
++    it = m_ev->productHit.insert_or_assign(tid, std::make_pair(G4int(m_ev->hits.size() - 1), vol)).first;
++  }
++  EventAction::Hit& h = m_ev->hits[it->second.first];
++  ++h.nsteps;
++  h.dE += step->GetTotalEnergyDeposit();
++  h.len += step->GetStepLength();
++  h.x1 = post->GetPosition();
++  h.t1 = post->GetGlobalTime();
++  if (post->GetPhysicalVolume() != pre->GetPhysicalVolume() || t->GetTrackStatus() == fStopAndKill)
++    m_ev->productHit.erase(it);
++}
++
+ // ---------------- stacking (only with killSecondaries) ----------------
+ G4ClassificationOfNewTrack StackingAction::ClassifyNewTrack(const G4Track* t) {
+   // a resumed (suspended) quirk is not new: keep the default set by QuirkPhysics
+   if (QuirkTrackStatus::isSuspended(t))
+     return stackManager->GetDefaultClassification();
+-  if (t->GetParentID() > 0 && !Quirk::isQuirk(t->GetParticleDefinition()))
++  if (t->GetParentID() > 0 && !Quirk::isQuirk(t->GetParticleDefinition()) &&
++      nullptr == dynamic_cast<const QuirkDecayProductInfo*>(t->GetUserInformation()))
+     return fKill;
+   return stackManager->GetDefaultClassification();
+ }
+diff --git a/quirksim/src/PrimaryGenerator.cc b/quirksim/src/PrimaryGenerator.cc
+index f13ec38..50118d5 100644
+--- a/quirksim/src/PrimaryGenerator.cc
++++ b/quirksim/src/PrimaryGenerator.cc
+@@ -28,7 +28,10 @@
+ 
+ namespace {
+   G4Mutex readerMutex = G4MUTEX_INITIALIZER;
+-  G4bool isQuirkPdg(G4int pdg) { return std::abs(pdg) == std::abs(quirkConfig().pdg); }
++  G4bool isQuirkPdg(G4int pdg) {
++    const G4int q = std::abs(quirkConfig().pdg);
++    return std::abs(pdg) == q || (quirkConfig().decayCtau > 0. && std::abs(pdg) == q + 1);  // + neutral partner
++  }
+ 
+ #ifdef QSIM_WITH_HEPMC3
+   // one reader for all threads; Geant4 event k always gets file event k (after skipEvents),

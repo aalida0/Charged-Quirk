@@ -1,0 +1,13 @@
+/quirk/mass 200 GeV
+/quirk/lambda 300 eV
+/quirk/decayCtau 1 mm
+/quirk/decayIdentity true
+/qsim/card cards/cms_like.card
+/qsim/gen/mode gun
+/qsim/gun/p1 300 50 100 GeV
+/qsim/gun/p2 250 -40 150 GeV
+/qsim/gun/vertex 0 0 0 mm
+/qsim/out/stepPrescale 1
+/qsim/out/printEvery 1
+/run/initialize
+/run/beamOn 3

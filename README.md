@@ -6,10 +6,11 @@ Code for a pheno study of **SU(2)-multiplet quirks whose charged component decay
 
 | Path | Content | Status |
 |---|---|---|
-| `ctau/` | One-loop gauge mass splitting and Q+ -> Q0 + X decay length vs Delta m (doublet, triplet, coupling-suppressed) | first version, needs the pi-pi channel and finite-M check |
+| `ctau/` | One-loop gauge mass splitting (finite-M, matches Ibe-Matsumoto-Sato for the triplet) and Q+ -> Q0 + X decay length vs Delta m, with e/mu/tau/pi/pi-pi0 channels; maps vs Delta m and vs M | pi-pi via GS form factor, gap 0.8-1.5 GeV unreliable (~20% quoted) |
+| `quirkdecay/` | Patch to QuirkPheno adding a charged-quirk decay step with string handover, decay-table tool, validation script, macros | leptonic channels validated; see its README |
 | `docs/PLAN.md` | Paper 1 plan, work packages, open checks | draft |
 
-Planned (not started): `strings/` (string propagation with a decay step), `recast/` (public CMS HSCP / disappearing-track recasts), `plots/`.
+Planned (not started): `recast/` (public CMS HSCP / disappearing-track recasts), `plots/`.
 
 ## External code
 
@@ -30,4 +31,4 @@ Needs numpy, scipy, matplotlib.
 
 ## Caveats on the current numbers
 
-Static-source limit with a vector-like W* coupling; pi/e/mu below 0.5 GeV, partonic above 1.5 GeV, interpolated in between (unreliable). pi-pi channel not included. Quote at most 2 significant figures.
+Vector-like W* coupling with exact-kinematics finite-M corrections; exclusive channels below 0.8 GeV, partonic above 1.5 GeV, interpolated in between (unreliable). Quote at most 2 significant figures.

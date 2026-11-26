@@ -1,0 +1,2 @@
+1.0 e- anti_nu_e
+1.0 mu- anti_nu_mu

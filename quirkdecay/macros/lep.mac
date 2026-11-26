@@ -1,0 +1,13 @@
+/quirk/mass 500 GeV
+/quirk/lambda 300 eV
+/quirk/decayCtau 6.21196 mm
+/quirk/decayDelta 356 MeV
+/quirk/decayTable macros/lep_table.txt
+/qsim/card cards/cms_like.card
+/qsim/gen/mode gun
+/qsim/gun/p1 300 50 100 GeV
+/qsim/gun/p2 250 -40 150 GeV
+/qsim/gun/vertex 0 0 0 mm
+/qsim/out/printEvery 500
+/run/initialize
+/run/beamOn 500
