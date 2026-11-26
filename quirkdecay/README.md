@@ -38,3 +38,10 @@ python3 /path/to/quirkdecay/validate_decay.py lep.root 500 0.356 6.21196
 * The neutral quirk has string interactions only.
 * The handover is validated by the identity test only, not against external code.
 * Delta m(M) is the one-loop Dirac-doublet/triplet value; no two-loop correction (a few MeV).
+
+## Triplet demo (M = 500 GeV, Delta = 167 MeV, kappa = 2, c*tau = 53.9 mm; `macros/triplet.mac`, 3000 events, gun mode)
+
+* 97.5% pi, 2.3% e, 0.3% mu (table); simulated e fraction 140/6000.
+* Proper time KS p = 0.86; pion rest-frame |p*| = 91.686 MeV vs 91.687 analytic (N = 5849, no spread); electron mean 83.1 +- 2.7 vs 83.5 MeV.
+* Kink angle between Q+ and Q0 is at most p*/p ~ 0.3 mrad: unobservable, so the signature is the termination of the heavy track plus a ~100 MeV pion, not a visible kink. Figure and script: `../demo/`.
+* Gun mode uses two fixed quirk momenta, so the decay-point distribution is illustrative, not a production kinematics result.

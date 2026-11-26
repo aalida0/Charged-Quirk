@@ -1,0 +1,5 @@
+# charged quirk -> neutral quirk + X; Delta m = 167.0 MeV, kappa = 2.0, M0 = 499.833 GeV
+# weight = partial width / GeV (exclusive channels, static-source V-A current)
+7.594738e-17  e-  anti_nu_e
+9.297006e-18  mu-  anti_nu_mu
+3.575148e-15  pi-
