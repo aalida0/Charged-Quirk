@@ -24,6 +24,10 @@ python3 plot_map.py               # writes ctau_map.png and ctau_map.csv
 
 Needs numpy, scipy, matplotlib.
 
+## Local QuirkPheno run
+
+`local/` has the conda-forge build and run scripts (no CVMFS/lxplus); see `docs/LOCAL_RUN.md` for the Pythia-card deviations, PDF sensitivity, and what is and is not validated.
+
 ## Caveats on the current numbers
 
 Static-source limit with a vector-like W* coupling; pi/e/mu below 0.5 GeV, partonic above 1.5 GeV, interpolated in between (unreliable). pi-pi channel not included. Quote at most 2 significant figures.
