@@ -1,0 +1,8 @@
+import model DiracTripletEW_NLO_UFO-no_b_mass
+generate p p > q1+ q1- [QCD]
+add process p p > q1+ q0~ [QCD]
+add process p p > q1- q0 [QCD]
+output tri_nlo
+ninja noinstall
+collier noinstall
+done

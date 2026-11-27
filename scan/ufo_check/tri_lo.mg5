@@ -1,0 +1,8 @@
+import model DiracTripletEW_NLO_UFO-no_b_mass
+generate p p > q1+ q1-
+add process p p > q2- q2+
+add process p p > q1+ q0~
+add process p p > q1- q0
+add process p p > q2- q0~
+add process p p > q2+ q0
+output tri_lo
