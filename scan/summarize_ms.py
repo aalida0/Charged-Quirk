@@ -1,11 +1,12 @@
 """Combine the mass-scan outputs into yields: M x {doublet, triplet} x Lambda, DY (re-weighted) + W*-mediated production.
 usage: summarize_ms.py <ms dir containing M<mass>/, csv/ and out/> <out.csv>
 sigma_eff = sigma_gen(Pythia) * [sum_i w_i flag_i] / (max event id covered + 1);  DY: w = LO coupling re-weighting (reweight_dy.py);
-W*: w = kappa_W^2 (1 doublet, 2 triplet: |<1,1|T+|1,0>|^2 = 2).  |eta| < 2.5 generator filter; no k-factor."""
+W*: w = kappa_W^2 (1 doublet, 2 triplet: |<1,1|T+|1,0>|^2 = 2); both: x2 charged Dirac species for the triplet (Psi+ and Psi-).  |eta| < 2.5 generator filter; no k-factor."""
 import sys, re, csv, numpy as np
 base, out = sys.argv[1], sys.argv[2]
 MASSES = [300, 500, 750, 1000, 1500, 2000]; LAMS = [30, 100, 300, 1000]
-KW2 = {'doublet': 1., 'triplet': 2.}
+KW2 = {'doublet': 1., 'triplet': 2.}      # W coupling^2 relative to the doublet
+SPECIES = {'doublet': 1., 'triplet': 2.}  # charged Dirac species: doublet (Y=1/2) Psi+; triplet (Y=0) Psi+ and Psi- (a Dirac triplet = 2 Majorana winos)
 def sigma_pb(f): return float(re.search(r'sigma = ([\d.eE+-]+) pb', open(f).read()).group(1))
 params = {}
 for l in open(f'{base}/ms_params.txt'):
@@ -22,8 +23,8 @@ for M in MASSES:
                 ev = np.load(f'{base}/csv/{rep}_{p}_M{M}_ev.npz')[f'L{L}']
                 ids = ev[:, 0].astype(int); cover = ids.max() + 1
                 if p == 'dy':
-                    wmap = dict(zip(rw['evnum'], rw[rep])); w = np.array([wmap[i] for i in ids])
-                else: w = np.full(len(ids), KW2[rep])
+                    wmap = dict(zip(rw['evnum'], rw[rep])); w = SPECIES[rep] * np.array([wmap[i] for i in ids])
+                else: w = np.full(len(ids), KW2[rep] * SPECIES[rep])
                 scale = sg[p] / cover
                 sig[p] = scale * w.sum()
                 for k, c in (('term', 1), ('neut', 2), ('metv', 3), ('tout', 4)): tot[k] += scale * (w * ev[:, c]).sum()

@@ -2,8 +2,8 @@
 usage: reweight_dy.py <dyf.hepmc3> <out.npz> <M_GeV>
 For every event: weight = sigma_hat(q qbar -> Q+ Q-; ŝ, target couplings) / sigma_hat(q qbar -> L- L+; ŝ, Pythia couplings), with
   sigma_hat ∝ beta * sum_{lambda=L,R} [ (3-beta^2)/2 |C_V,lambda|^2 + beta^2 |C_A,lambda|^2 ],
-  C_V,lambda = Q_q Q_F / ŝ + g^q_lambda g^F_V /(ŝ - mZ^2 + i mZ GZ),  C_A,lambda = g^q_lambda g^F_A /(ŝ - mZ^2 + i mZ GZ)
-(couplings in units of e/(sw cw), massless quarks).  The ŝ, the incoming flavours and the event numbers are read from GenPdfInfo.
+  C_V,lambda = Q_q Q_F / ŝ + g^q_lambda g^F_V /(sw2 cw2 (ŝ - mZ^2 + i mZ GZ)),  C_A,lambda = g^q_lambda g^F_A /(sw2 cw2 (ŝ - mZ^2 + i mZ GZ))
+(g = T3 - Q sw2 couplings; the Z coupling is e/(sw cw) g, hence the 1/(sw2 cw2); massless quarks).  The ŝ, the incoming flavours and the event numbers are read from GenPdfInfo.
 Targets: 'doublet' (T=1/2, Y=1/2, Q+: g_V = 1/2 - sw2), 'triplet' (T=1, Y=0, Q+: g_V = 1 - sw2), vector-like (g_A = 0);
 reference: charged lepton (g_L = -1/2 + sw2, g_R = sw2, i.e. g_V = (g_L+g_R)/2, g_A = (g_R-g_L)/2 up to sign)."""
 import sys, re, numpy as np
@@ -13,7 +13,7 @@ SQRTS = 13000.
 q = {1: (-1/3, -.5), 2: (2/3, .5), 3: (-1/3, -.5), 4: (2/3, .5), 5: (-1/3, -.5)}   # (charge, T3L)
 def sig(flav, shat, QF, gV, gA):
     Qq, T3 = q[flav]; gqL, gqR = T3 - Qq * sw2, -Qq * sw2
-    b = np.sqrt(max(1 - 4 * M * M / shat, 1e-12)); PZ = 1 / (shat - mZ ** 2 + 1j * mZ * GZ)
+    b = np.sqrt(max(1 - 4 * M * M / shat, 1e-12)); PZ = 1 / (sw2 * (1 - sw2) * (shat - mZ ** 2 + 1j * mZ * GZ))
     tot = 0.
     for gq in (gqL, gqR):
         CV = Qq * QF / shat + gq * gV * PZ; CA = gq * gA * PZ

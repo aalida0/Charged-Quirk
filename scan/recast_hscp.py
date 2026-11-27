@@ -8,7 +8,8 @@ per mass, representation, R and, for the proper c*tau actually predicted and for
 To obtain a recast limit, compare sigma_HSCP(M) with the published upper limit sigma_UL(M) of the track-based HSCP search (not included)."""
 import sys, glob, re, csv, numpy as np, uproot
 base, out = sys.argv[1], sys.argv[2]
-MASSES = [300, 500, 750, 1000, 1500, 2000]; KW2 = {'doublet': 1., 'triplet': 2.}
+MASSES = [300, 500, 750, 1000, 1500, 2000]; KW2 = {'doublet': 1., 'triplet': 2.}      # W coupling^2 relative to the doublet
+SPECIES = {'doublet': 1., 'triplet': 2.}  # charged Dirac species: doublet (Y=1/2) Psi+; triplet (Y=0) Psi+ and Psi- (a Dirac triplet = 2 Majorana winos)
 RADII = {'tracker': (1160., 2800.), 'ecal': (1290., 3150.), 'muon': (4200., 6900.)}
 CTAUS = [1., 5., 20., 56., 200., 1000., 5000., 20000., 1e5]   # mm
 def sigma_fb(f): return float(re.search(r'sigma = ([\d.eE+-]+) pb', open(f).read()).group(1)) * 1e3
@@ -29,7 +30,7 @@ for M in MASSES:
                 ['genEvt', 'q_pdg', 'q_px0', 'q_py0', 'q_pz0', 'q_x0', 'q_y0', 'q_z0'], library='np')
             ids = a['genEvt'].astype(int); cover = ids.max() + 1
             wmap = dict(zip(rw['evnum'], rw[rep])) if p == 'dy' else None
-            w = np.array([wmap[i] for i in ids]) if p == 'dy' else np.full(len(ids), KW2[rep])
+            w = SPECIES[rep] * (np.array([wmap[i] for i in ids]) if p == 'dy' else np.full(len(ids), KW2[rep]))
             bg, path = [], {k: [] for k in RADII}
             for i in range(len(ids)):
                 bgs, ls = [], {k: [] for k in RADII}
