@@ -50,13 +50,14 @@ else:
     for proc, fn in (('chgchg', 'C1C1_effs.json'), ('chgn1', 'C1N1_effs.json')):
         for x in json.load(open(f'{val}/{fn}')):
             for e in x['Efficiencies']: ref[(proc, int(x['mLLP']), round(e['tau_ns'], 4))] = (e['EWK SR'], e['EWK SR Error'])
-    taus = [0.05, 0.1, 0.4, 0.8, 2.0, 7.0, 20.0]; rows = []
+    taus = [float(x) for x in os.environ.get('WV_TAUS', '0.1,0.4,2.0,7.0').split(',')]; rows = []; NMAX = int(os.environ.get('WV_N', '40000')); PROCS = os.environ.get('WV_PROCS', 'chgchg,chgn1').split(',')
+    MASSES_ = [int(x) for x in os.environ.get('WV_MASSES', '100,200,300,400,500,600,700,800,900').split(',')]
     rng3 = np.random.default_rng(5)
-    for proc in ('chgchg', 'chgn1'):
-        for M in (100, 200, 300, 400, 500, 600, 700, 800, 900):
+    for proc in PROCS:
+        for M in MASSES_:
             fn = f'{ndir}/wino_{proc}_{M}.npz'
             if not os.path.exists(fn): continue
-            d = np.load(fn, allow_pickle=True); n = len(d['metx']); jm = dict(jets=d['jets'].copy(), metx=d['metx'].copy(), mety=d['mety'].copy())
+            d = np.load(fn, allow_pickle=True); n = min(len(d['metx']), NMAX); jm = dict(jets=d['jets'][:n].copy(), metx=d['metx'][:n].copy(), mety=d['mety'][:n].copy())
             # per event objects and trigger/kinematics: once per event (smearing random but shared by all tau)
             obj = []
             for k in range(n):
