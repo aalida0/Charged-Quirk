@@ -1,0 +1,4 @@
+M=500 L=   30 eV  N=1303 <nhits>=2.55  rms(proxy)=    12.74  rms(fit)=    12.75 1/TeV  median |fit-proxy|=    0.36  frac(|fit-proxy|>14/TeV)=0.001  corr=0.996
+M=500 L=  100 eV  N=1275 <nhits>=2.55  rms(proxy)=   166.73  rms(fit)=   166.34 1/TeV  median |fit-proxy|=    0.37  frac(|fit-proxy|>14/TeV)=0.001  corr=1.000
+M=500 L=  300 eV  N=1213 <nhits>=2.50  rms(proxy)=  1162.68  rms(fit)=  1136.75 1/TeV  median |fit-proxy|=    0.90  frac(|fit-proxy|>14/TeV)=0.119  corr=1.000
+M=500 L= 1000 eV  N=548 <nhits>=2.32  rms(proxy)= 51264.37  rms(fit)= 16837.20 1/TeV  median |fit-proxy|= 1056.93  frac(|fit-proxy|>14/TeV)=0.932  corr=0.600

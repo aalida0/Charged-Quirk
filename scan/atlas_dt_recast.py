@@ -20,6 +20,8 @@ smear: 'first' reproduces the pT-bin selection of the recast code (first bin tha
 import sys, re, csv, glob, numpy as np, uproot
 base, atl, kf, out = sys.argv[1:5]
 SMEAR = sys.argv[5] if len(sys.argv) > 5 else 'first'
+import os
+HITFIT = os.environ.get('HITFIT', '0') == '1'; HITVETO = os.environ.get('HITVETO', '0') == '1'
 MASSES = [300, 500, 750, 1000, 1500, 2000]; LAMS = [30, 100, 300, 1000]
 KW2 = {'doublet': 1., 'triplet': 2.}; SPECIES = {'doublet': 1., 'triplet': 2.}
 BSIM, BATL = 3.8, 2.0
@@ -87,7 +89,7 @@ def quirks(a, i, Lm=125.):
         if abs(pdg) != 17: continue
         ppx, ppy, ppz = a['dec_ppx'][i][j] / 1e3, a['dec_ppy'][i][j] / 1e3, a['dec_ppz'][i][j] / 1e3
         pt = np.hypot(ppx, ppy); eta = np.arcsinh(ppz / max(pt, 1e-9)); R = np.hypot(a['dec_x'][i][j], a['dec_y'][i][j])
-        sel = (a['h_q'][i] == s) & np.isin(a['h_det'][i], [2, 4, 5, 6, 7, 8]); dphis = 0.; L = 0.1
+        sel = (a['h_q'][i] == s) & np.isin(a['h_det'][i], [2, 4, 5, 6, 7, 8]); dphis = 0.; L = 0.1; chi2ok = 1.
         if sel.sum() >= 2:
             o = np.argsort(a['h_t0'][i][sel])
             x = ((a['h_x0'][i] + a['h_x1'][i]) / 2)[sel][o]; y = ((a['h_y0'][i] + a['h_y1'][i]) / 2)[sel][o]
@@ -98,11 +100,27 @@ def quirks(a, i, Lm=125.):
                 d = (np.arctan2(py, px) - np.arctan2(p0y, p0x) + np.pi) % (2 * np.pi) - np.pi
                 sq = 1. if pdg > 0 else -1.
                 dphis = d - sq * 0.29979 * BSIM * Lm_ / pt0; L = Lm_
-        res.append(dict(pt=pt, pt0=np.hypot(a['q_px0'][i][s], a['q_py0'][i][s]) / 1e3, eta=eta, phi=np.arctan2(ppy, ppx), R=R, dphis=dphis, L=L, sq=(1. if pdg > 0 else -1.)))
+                if HITFIT and len(m) >= 2:
+                    # hit-level alternative: circle through the production point (beam spot) and the true hit positions at r < Lm, signed
+                    # curvature relative to the initial direction; the string-induced part is kappa_fit - kappa_B, same conversion afterwards
+                    xs_, ys_ = x[m] - a['q_x0'][i][s], y[m] - a['q_y0'][i][s]
+                    A = np.c_[xs_, ys_]; bvec = 0.5 * (xs_ ** 2 + ys_ ** 2)
+                    ctr = np.linalg.lstsq(A, bvec, rcond=None)[0]; R2 = ctr @ ctr
+                    ph0 = np.arctan2(p0y, p0x)
+                    kap = (-ctr[0] * np.sin(ph0) + ctr[1] * np.cos(ph0)) / R2 * 1e3 if R2 > 0 else 0.    # 1/m, CCW positive
+                    # chi2-like non-helicity: rms residual of hits to the fitted circle (mm)
+                    dphis = (kap - sq * 0.29979 * BSIM / pt0) * Lm_
+                    # deterministic non-helicity veto: string-induced hit residuals (no hit noise) against sigma = 10 um; ATLAS requires
+                    # chi2 probability > 0.1 (chi2 > 2.71 for one degree of freedom, n_hits = 3 here) and no significantly deviating hit
+                    if HITVETO and len(m) >= 3:
+                        rsd = np.hypot(xs_ - ctr[0], ys_ - ctr[1]) - np.sqrt(R2)
+                        chi2ok = float(np.sum((rsd / 0.010) ** 2) < 2.71)
+        res.append(dict(chi2ok=chi2ok, pt=pt, pt0=np.hypot(a['q_px0'][i][s], a['q_py0'][i][s]) / 1e3, eta=eta, phi=np.arctan2(ppy, ppx), R=R, dphis=dphis, L=L, sq=(1. if pdg > 0 else -1.)))
     return res
 def track_eff(q, jets_eta, jets_phi, string):
     eff = look(TRK, KX, KY, q['eta'], q['R'])
     if eff <= 0.: return 0.
+    if string: eff *= q['chi2ok']
     qpt = q['sq'] * 1e3 / q['pt0']
     if string and q['L'] > 0: qpt += 1e3 * q['dphis'] / (0.29979 * BATL * q['L'])
     smp = pick(q['pt0'])
