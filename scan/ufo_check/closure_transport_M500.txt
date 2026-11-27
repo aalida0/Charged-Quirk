@@ -1,0 +1,10 @@
+--- M=500 Lambda=100 eV
+  dy Pythia template: events  2194, charged endpoints decayed  4386 (1.999/event), >=3 layers 0.100+-0.005, >=4 layers 0.051
+  dy UFO + Pythia   : events   645, charged endpoints decayed  1290 (2.000/event), >=3 layers 0.102+-0.008, >=4 layers 0.047
+  w  Pythia template: events  2112, charged endpoints decayed  2109 (0.999/event), >=3 layers 0.103+-0.007, >=4 layers 0.047
+  w  UFO + Pythia   : events  1412, charged endpoints decayed  1412 (1.000/event), >=3 layers 0.103+-0.008, >=4 layers 0.050
+--- M=500 Lambda=1000 eV
+  dy Pythia template: events  2194, charged endpoints decayed  4386 (1.999/event), >=3 layers 0.019+-0.002, >=4 layers 0.005
+  dy UFO + Pythia   : events   645, charged endpoints decayed  1290 (2.000/event), >=3 layers 0.018+-0.004, >=4 layers 0.006
+  w  Pythia template: events  2112, charged endpoints decayed  2109 (0.999/event), >=3 layers 0.020+-0.003, >=4 layers 0.003
+  w  UFO + Pythia   : events  1412, charged endpoints decayed  1412 (1.000/event), >=3 layers 0.016+-0.003, >=4 layers 0.006

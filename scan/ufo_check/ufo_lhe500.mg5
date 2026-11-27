@@ -1,0 +1,9 @@
+launch tri_lo -n lhe500
+set nevents 20000
+set iseed 31
+set systematics_program none
+set ebeam1 6500
+set ebeam2 6500
+set MQC 500
+set MQ0 500
+set aEWM1 127.934
