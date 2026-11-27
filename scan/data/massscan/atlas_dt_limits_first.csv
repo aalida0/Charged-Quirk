@@ -1,0 +1,9 @@
+Lambda_eV,treatment,limit_raw_GeV,flag_raw,limit_calibrated_GeV,flag_cal,f,official_wino_limit_GeV,source
+30.0,string,673,=,735,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+30.0,ideal_helix,676,=,739,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+100.0,string,635,=,708,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+100.0,ideal_helix,662,=,731,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+300.0,string,517,=,584,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+300.0,ideal_helix,661,=,725,=,0.572,649,data/massscan/atlas_dt_recast_first.csv
+1000.0,string,300,<,300,<,0.572,649,data/massscan/atlas_dt_recast_first.csv
+1000.0,ideal_helix,476,=,534,=,0.572,649,data/massscan/atlas_dt_recast_first.csv

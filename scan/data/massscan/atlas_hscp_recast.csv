@@ -1,0 +1,11 @@
+tau_ns,kind,wino_limit_GeV,wino_flag,triplet_quirk_limit_GeV,quirk_flag,mass_range
+1.0,observed,615,=,758,=,400-1000
+1.0,expected,630,=,742,=,400-1000
+4.0,observed,956,=,1056,=,400-1600
+4.0,expected,1032,=,1172,=,400-1600
+10.0,observed,1026,=,1127,=,400-1600
+10.0,expected,1134,=,1283,=,400-1600
+30.0,observed,1046,=,1150,=,400-1600
+30.0,expected,1180,=,1326,=,400-1600
+inf,observed,1048,=,1146,=,400-1600
+inf,expected,1163,=,1324,=,400-1600

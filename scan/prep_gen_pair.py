@@ -5,12 +5,14 @@ per-event generator quantities (quirks, pair, isolation sums around q1, q2, pair
 usage: prep_gen.py in.hepmc3 out.hepmc3 out.npz [etamax=1.3] [bound]
 bound: keep only pairs with |eta| < 1.1 and beta > 0.4 (bound-pair selection needs both)"""
 import math
+import os
 import sys
 import numpy as np
 
 fin, fout, fnpz = sys.argv[1:4]
 etamax = float(sys.argv[4]) if len(sys.argv) > 4 else 1.3
 bound = len(sys.argv) > 5 and sys.argv[5] == "bound"
+PAIRPTMIN = float(os.environ.get("PAIRPTMIN", "0"))   # optional recoil pre-filter on the generator-level pair pT [GeV]
 CHG = {11, 13, 211, 321, 2212, 3112, 3222, 3312, 3334}  # stable charged after Pythia decays
 INVIS = {12, 14, 16}
 CONES = (0.05, 0.1, 0.2, 0.3)
@@ -56,7 +58,7 @@ def process(ev, o):
     k1 = kin(*q[0][1:4])
     k2 = kin(*q[1][1:4])
     kp = kin(q[0][1] + q[1][1], q[0][2] + q[1][2], q[0][3] + q[1][3])
-    if min(abs(k1[1]), abs(k2[1]), abs(kp[1])) > etamax:
+    if min(abs(k1[1]), abs(k2[1]), abs(kp[1])) > etamax or kp[0] < PAIRPTMIN:
         return
     if bound:
         ep = q[0][4] + q[1][4]

@@ -1,5 +1,7 @@
 # ITk-LIKE variant of cms_like.card: barrel radii of an ITk-like layout (5 pixel + 4 strip layers) and B = 2 T.
-# Radii typed from memory of the public ATLAS ITk layout, NOT verified against the TDR (web access was unavailable); calorimeters etc. unchanged.
+# Barrel radii checked against the public ITk layout (arXiv:2412.15090, Tables 1 and 3: pixel 34, 99, 160, 228, 291 mm; strip 399, 562, 762, 1000 mm; B = 2 T).
+# In this card the 291 mm pixel layer is called TIB1 and the strip layers TIB2..TOB1; strip-layer z extents (+-70 / +-109 cm) are SHORTER than the real +-137 cm,
+# and the end-cap/forward parts are CMS-like placeholders, so the card is valid for |eta| < ~1.5 only; calorimeters etc. unchanged.
 # Generic CMS-like detector, written by make_cms_like.py (tk1.00_calo1.00_full_yoke)
 # lengths in cm; '+x0:v' / '+lam:v' / '+cm:v' / '+um:v' = thickness from the inner edge
 world 900 1150 G4_AIR
@@ -31,8 +33,8 @@ tube PIXSERV    TkSupport                       4.5000     17.0000   56.0000 +x0
 # strip tracker [D]; layers 1-2 of TIB and TOB are double sided (two sensors)
 tube TIB1            G4_Si                             29.1000     +um:640  -70.0000     70.0000 det=TIB layer=1 sens
 tube TIB1S           TkSupport                         29.1500 +x0:0.03000  -70.0000     70.0000 det=TKSUP layer=1
-tube TIB2            G4_Si                             40.5000     +um:640  -70.0000     70.0000 det=TIB layer=2 sens
-tube TIB2S           TkSupport                         40.5500 +x0:0.03000  -70.0000     70.0000 det=TKSUP layer=2
+tube TIB2            G4_Si                             39.9000     +um:640  -70.0000     70.0000 det=TIB layer=2 sens
+tube TIB2S           TkSupport                         39.9500 +x0:0.03000  -70.0000     70.0000 det=TKSUP layer=2
 tube TIB3            G4_Si                             56.2000     +um:320  -70.0000     70.0000 det=TIB layer=3 sens
 tube TIB3S           TkSupport                         56.2500 +x0:0.03000  -70.0000     70.0000 det=TKSUP layer=3
 tube TIB4            G4_Si                             76.2000     +um:320  -70.0000     70.0000 det=TIB layer=4 sens

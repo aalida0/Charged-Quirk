@@ -1,10 +1,10 @@
 """Generator-level MET and anti-kT(0.4) jets per HepMC3 event (Pythia hadron level), for a monojet-style selection of the neutral pair.
 usage: jetmet_gen.py <in.hepmc3> <out.npz>
 Visible = status-1 particles that are not neutrinos and not 17/18 (quirks), |eta| < 4.7 for MET; jets from visible particles with pT > 1 GeV, |eta| < 4.7.
-Outputs per event: evnum, met (GeV), jet pT/eta/phi (up to 4 leading jets with pT > 30 GeV, eta < 4.7), n_jets30."""
+Outputs per event: evnum, met (GeV), metx, mety, jet pT/eta/phi (up to 6 leading jets with pT > 20 GeV, eta < 4.7), nj30 (n jets with pT > 30)."""
 import sys, math, numpy as np
 INV = {12, 14, 16, 17, 18}
-def antikt(pt, eta, phi, R=0.4, ptmin=30.):
+def antikt(pt, eta, phi, R=0.4, ptmin=20.):
     px, py, pz = pt * np.cos(phi), pt * np.sin(phi), pt * np.sinh(eta)
     P = np.c_[px, py, pz, np.sqrt(px ** 2 + py ** 2 + pz ** 2)]
     def kin(P):
@@ -27,7 +27,7 @@ def antikt(pt, eta, phi, R=0.4, ptmin=30.):
         ptj = math.hypot(J[0], J[1])
         if ptj > ptmin: out.append((ptj, math.asinh(J[2] / ptj), math.atan2(J[1], J[0])))
     return sorted(out, reverse=True)
-ev, met, jets, nj = [], [], [], []
+ev, met, jets, nj, mx, my = [], [], [], [], [], []
 cur = None; parts = []
 def flush():
     if cur is None: return
@@ -35,11 +35,11 @@ def flush():
     if len(a):
         pt = np.hypot(a[:, 0], a[:, 1]); eta = np.arcsinh(a[:, 2] / np.maximum(pt, 1e-9))
         m = (np.abs(eta) < 4.7)
-        met.append(math.hypot(a[m, 0].sum(), a[m, 1].sum()))
+        mx.append(-a[m, 0].sum()); my.append(-a[m, 1].sum()); met.append(math.hypot(a[m, 0].sum(), a[m, 1].sum()))
         s = m & (pt > 1.)
         js = antikt(pt[s], eta[s], np.arctan2(a[s, 1], a[s, 0])) if s.sum() else []
-    else: met.append(0.); js = []
-    ev.append(cur); nj.append(len(js)); jets.append((js + [(0., 0., 0.)] * 4)[:4])
+    else: met.append(0.); mx.append(0.); my.append(0.); js = []
+    ev.append(cur); nj.append(sum(1 for j in js if j[0] > 30.)); jets.append((js + [(0., 0., 0.)] * 6)[:6])
 for l in open(sys.argv[1]):
     if l.startswith('E '):
         flush(); cur = int(l.split()[1]); parts = []
@@ -48,5 +48,5 @@ for l in open(sys.argv[1]):
         if pdg in INV: continue
         parts.append(tuple(map(float, f[4:8])))
 flush()
-np.savez(sys.argv[2], evnum=np.array(ev), met=np.array(met), jets=np.array(jets), nj30=np.array(nj))
+np.savez(sys.argv[2], evnum=np.array(ev), met=np.array(met), metx=np.array(mx), mety=np.array(my), jets=np.array(jets), nj30=np.array(nj))
 print('events', len(ev), 'median MET', np.median(met))
