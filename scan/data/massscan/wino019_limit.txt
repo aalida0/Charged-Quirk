@@ -1,0 +1,2 @@
+first: sigma_vis(600)=0.0375 fb; limit = 602 GeV (official contour 649 GeV)
+intended: sigma_vis(600)=0.0520 fb; limit = 640 GeV (official contour 649 GeV)

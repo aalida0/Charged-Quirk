@@ -1,0 +1,8 @@
+wino benchmark 670 (obs) / 770 (exp) GeV, Dirac triplet = 2 winos per index:
+  N_ic=1: M* = 768 (obs-scaled)  874 (exp-scaled) GeV
+  N_ic=2: M* = 872 (obs-scaled)  986 (exp-scaled) GeV
+  N_ic=3: M* = 936 (obs-scaled)  1054 (exp-scaled) GeV
+higgsino benchmark 225 (obs) / 250 (exp) GeV, Dirac doublet = 1 higgsino multiplet per index:
+  N_ic=1: M* = 225 (obs-scaled)  250 (exp-scaled) GeV
+  N_ic=2: M* = 270 (obs-scaled)  299 (exp-scaled) GeV
+  N_ic=3: M* = 299 (obs-scaled)  331 (exp-scaled) GeV
