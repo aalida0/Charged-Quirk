@@ -34,12 +34,15 @@ mw, fl = lim('sigma_vis_idealhelix_NLO_fb', lam0, fac=0.5)
 print(f"validation: tau = {tau:.3f} ns; official wino lower-branch limit at this lifetime M = {M_off:.0f} GeV")
 print(f"  proxy (ideal helix, wino = triplet/2): limit {fl}{mw:.0f} GeV; sigma_vis(M_off) = {w_at_off:.4f} fb vs 0.037 fb -> f = {f:.2f}  (f>1: proxy is optimistic at the official limit, f<1: conservative)")
 rows = []
-for lam in sorted(set(d['Lambda_eV'])):
-    for name, col, fac in [('string', 'sigma_vis_NLO_fb', 1.), ('ideal_helix', 'sigma_vis_idealhelix_NLO_fb', 1.)]:
-        mr, fr = lim(col, lam)
-        mc, fc = lim(col, lam, f=1. / f if f > 0 else 1.)
-        rows.append(dict(Lambda_eV=lam, treatment=name, limit_raw_GeV=round(mr), flag_raw=fr, limit_calibrated_GeV=round(mc), flag_cal=fc, f=round(f, 3),
+# N_IC: the tabulated sigma_vis is PER INFRACOLOR INDEX (Pythia samples carry no infracolor multiplicity); the Born rate of a Dirac multiplet in the
+# fundamental of SU(N_IC) is N_IC times larger. The wino validation above does not involve N_IC.
+for nic in (1, 2, 3):
+  for lam in sorted(set(d['Lambda_eV'])):
+    for name, col in [('string', 'sigma_vis_NLO_fb'), ('ideal_helix', 'sigma_vis_idealhelix_NLO_fb')]:
+        mr, fr = lim(col, lam, fac=float(nic))
+        mc, fc = lim(col, lam, f=1. / f if f > 0 else 1., fac=float(nic))
+        rows.append(dict(N_IC=nic, Lambda_eV=lam, treatment=name, limit_raw_GeV=round(mr), flag_raw=fr, limit_calibrated_GeV=round(mc), flag_cal=fc, f=round(f, 3),
                          official_wino_limit_GeV=round(M_off), source=fn))
-        print(f"Lambda={lam:5.0f} eV {name:12s}: raw {fr}{mr:.0f} GeV   calibrated to official wino {fc}{mc:.0f} GeV")
+        print(f"N_IC={nic} Lambda={lam:5.0f} eV {name:12s}: raw {fr}{mr:.0f} GeV   calibrated to official wino {fc}{mc:.0f} GeV")
 with open(out, 'w', newline='') as fh:
     w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)

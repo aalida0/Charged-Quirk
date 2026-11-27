@@ -11,9 +11,18 @@ used to rescale the 1 ns limit: sigma_UL(tau) ~ sigma_UL(1 ns) * A(1 ns)/A(tau);
 Same-kinematics assumption: the acceptance/efficiency of the quirk pair is taken equal to that of the chargino pair; spin/string
 differences are not modelled (string forces ignored for Lambda <~ 100 eV).
 
-usage: atlas_hscp_recast.py <HEPData-ins2080541-csv dir> out.csv"""
+usage: atlas_hscp_recast.py <HEPData-ins2080541-csv dir> out.csv
+The ATLAS signal-cross-section column starts at 400 GeV; below that (indicative sub-ns block) the wino sigma comes from the public NLO+NLL tables
+in data/massscan/xsec_13TeV_pp2chg*_fb.csv (they agree with the ATLAS column to 2-4% at 400-500 GeV)."""
 import sys, re, csv, numpy as np
 D, OUT = sys.argv[1:3]
+import os
+XD = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'massscan')
+def sig_wino_pb(M):
+    t = 0.
+    for f in ('xsec_13TeV_pp2chgchg_fb.csv', 'xsec_13TeV_pp2chgn1_fb.csv'):
+        d = np.genfromtxt(os.path.join(XD, f), delimiter=',', names=True); t += float(np.exp(np.interp(M, d['mass'], np.log(d['xsec']))))
+    return t * 1e-3
 R = 2.0
 
 def blocks(fn):
@@ -69,7 +78,7 @@ t1 = load('1ns')
 for M in (300, 400, 500, 600, 700, 800):
     A02 = np.interp(M, a02[:, 0], a02[:, 1]); A1 = np.interp(M, a1[:, 0], a1[:, 1])
     ul_eff = np.interp(M, t1['M'], t1['obs']) * A1 / max(A02, 1e-4)
-    sq = R * np.exp(np.interp(M, t1['Msig'], np.log(t1['sigv'])))
+    sq = R * sig_wino_pb(M)
     print(f"  M={M}: A(0.2ns)={A02:.4f} (ATLAS table, rounded) A(1ns)={A1:.3f}; indicative sigma_UL(0.2 ns) >~ {ul_eff:.3g} pb vs sigma_quirk {sq:.3g} pb  -> {'excluded' if sq > ul_eff else 'not excluded'}")
 with open(OUT, 'w', newline='') as fh:
     w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
