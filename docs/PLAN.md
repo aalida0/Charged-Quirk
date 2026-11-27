@@ -6,8 +6,8 @@
 
 1. **Decay map (done).** Delta m and c*tau with pi-pi and finite-M. TODO: compare Forsyth Appendix A.1 normalization (their tau ~ 1e-12 s at 10 GeV is ~4e5 longer than full strength; Harnik Eq. 17 agrees with full strength).
 2. **String + decay propagator (done, see quirkdecay/).** Extend the QuirkPheno transport (quirkcore) with a neutral quirk species; carry the string state across the particle swap (string state is keyed by PDG code there).
-3. **Regime map (first scan done, scan/; M = 500 GeV only; mass dependence, W*-mediated production and analytic boundaries open).** Lambda vs c*tau vs oscillation/turnaround scales; adapt Harnik's decay-vs-energy-loss survival probability P = 1 - exp(-t_loss/t).
-4. **Recasts (public only).** CMS HSCP (EXO-18-002, arXiv:2410.09164, HEPData ins2840007) and public disappearing-track searches, Lambda below ~100 eV.
+3. **Regime map (done at LO, scan/ and scan/massscan/: M = 300-2000 GeV, doublet and triplet with finite-M Delta m, DY re-weighted + W*, helical-fraction map, neutral-pair classification, ITk-like check; analytic boundaries open).** Lambda vs c*tau vs oscillation/turnaround scales; adapt Harnik's decay-vs-energy-loss survival probability P = 1 - exp(-t_loss/t).
+4. **Recasts (public only).** CMS HSCP (EXO-18-002, arXiv:2410.09164, HEPData ins2840007) and public disappearing-track searches, Lambda below ~100 eV. Status: survival-weighted HSCP cross sections computed (scan/recast_hscp.py: P(reach tracker) <= 8e-5 for the physical triplet, 0 for the doublet, so no HSCP constraint); helical-compatible rate for the disappearing-track mapping computed; NOT done: conversion into mass limits, because HEPData / the experiment pages could not be fetched (the approval request went unanswered). Needs: sigma_UL(M) curves of CMS-EXO-18-002 and the wino/higgsino disappearing-track limit tables.
 5. **Turnaround-window selection.** Terminating coplanar-hit pattern, ~100 eV-10 keV, where the HSCP recast has no sensitivity.
 
 ## Out of scope (Paper 2/3)

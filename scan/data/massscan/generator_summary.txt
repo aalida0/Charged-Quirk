@@ -1,0 +1,24 @@
+M=300 dy quirkgen: wrote 2000 events, sigma = 2.652e-02 pb
+M=300 dy prep_gen: kept 1837 of 2000
+M=300 w quirkgen: wrote 2000 events, sigma = 1.706e-01 pb
+M=300 w prep_gen: kept 1840 of 2000
+M=500 dy quirkgen: wrote 2000 events, sigma = 3.082e-03 pb
+M=500 dy prep_gen: kept 1908 of 2000
+M=500 w quirkgen: wrote 2000 events, sigma = 1.966e-02 pb
+M=500 w prep_gen: kept 1903 of 2000
+M=750 dy quirkgen: wrote 2000 events, sigma = 4.032e-04 pb
+M=750 dy prep_gen: kept 1867 of 2000
+M=750 w quirkgen: wrote 2000 events, sigma = 2.677e-03 pb
+M=750 w prep_gen: kept 1950 of 2000
+M=1000 dy quirkgen: wrote 2000 events, sigma = 7.358e-05 pb
+M=1000 dy prep_gen: kept 1849 of 2000
+M=1000 w quirkgen: wrote 2000 events, sigma = 5.111e-04 pb
+M=1000 w prep_gen: kept 1968 of 2000
+M=1500 dy quirkgen: wrote 2000 events, sigma = 4.118e-06 pb
+M=1500 dy prep_gen: kept 1901 of 2000
+M=1500 w quirkgen: wrote 2000 events, sigma = 3.140e-05 pb
+M=1500 w prep_gen: kept 1963 of 2000
+M=2000 dy quirkgen: wrote 2000 events, sigma = 2.702e-07 pb
+M=2000 dy prep_gen: kept 1910 of 2000
+M=2000 w quirkgen: wrote 2000 events, sigma = 3.098e-06 pb
+M=2000 w prep_gen: kept 1978 of 2000

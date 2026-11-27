@@ -27,6 +27,7 @@ python3 /path/to/quirkdecay/validate_decay.py lep.root 500 0.356 6.21196
 * Four-momentum conserved per decay to float precision.
 * Rest-frame mean energy: e 173.2/181.0 (+-3.1) vs 177.9 MeV; mu 207.8/208.5 (+-2.4) vs 206.8 MeV (static-source spectrum E p (Delta-E)^2).
 * Identity mode (neutral daughter same PDG): string handover reproduces the undecayed run (see `macros/ident.mac`).
+* Vacuum A/B test of the handover (`validation/`, field-free card, 300 DY pairs, Lambda = 300 eV, c*tau = 300 mm, Delta = 2 MeV; A = charged pair decaying, B = same kinematics with a neutral quirk from the start): distributions agree (KS p = 0.99-1.00 for end energy, time, z, maximum separation; paired mean differences <= 1.5 sigma, <= 3e-3 of the mean) but not event by event (median relative difference 1e-3 - 1e-2, tails to tens of per cent in x, y). The same spread appears between identity-decay runs with different decay points (c*tau = 100, 300, 1000 mm) and between an identity run and a run with no decay (c*tau = 1e12): it is the step discretisation of the string integration (the decay point changes the step sequence), not the handover. Run `validation/cmp.py` (event by event) and `validation/ks.py` (distributions).
 * An earlier flat-invariant-matrix-element generator gave a 3.7% high muon mean (214 vs 207 MeV); the exact flat-Dalitz MC agreed with it (216 +- 1), showing the static reference needs the E_l E_nu matrix-element factor. The tensor weighting fixes this.
 * pi pi0 weight: non-negative and below its rejection bound on random configurations; the pi pi0 channel has not been validated against its analytic spectrum in the simulation.
 
@@ -36,11 +37,11 @@ With the decay process present, a free quirk (Lambda = 10, 30 eV, c*tau = 1 m) r
 
 ## Limits
 
-* Drell-Yan Q+Q- only: no W-mediated or neutral-pair production in the Pythia card; the neutral PDG is accepted in gun/HepMC mode only.
+* The Pythia card of the repository generates Drell-Yan Q+Q- (the neutral PDG is accepted in gun/HepMC mode); `../scan/massscan/` adds W*-mediated Q+Q0 samples (Pythia process 3021 with a vector-like W') and a LO coupling re-weighting of the Drell-Yan events.
 * Hadronic continuum above ~0.8 GeV is not modelled; at most two visible products; rho dynamics absent from the pi pi0 weight.
 * Stopped quirks are killed before they decay unless `keepStopped` is set.
 * The neutral quirk has string interactions only.
-* The handover is validated by the identity test only, not against external code.
+* The handover is validated by the identity test and the vacuum A/B test above (agreement in distribution, per-event noise at the integration-step level), not against external code.
 * Delta m(M) is the one-loop Dirac-doublet/triplet value; no two-loop correction (a few MeV).
 
 ## Triplet demo (M = 500 GeV, Delta = 167 MeV, kappa = 2, c*tau = 53.9 mm; `macros/triplet.mac`, 3000 events, gun mode)

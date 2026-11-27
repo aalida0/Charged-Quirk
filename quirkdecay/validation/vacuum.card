@@ -1,0 +1,5 @@
+# field-free vacuum world for the handover test
+world 900 1150 G4_Galactic
+checkOverlaps 1
+tube PIPE_VAC   G4_Galactic                     0.0000      2.1700 -1100.0000   1100.0000 det=PIPE
+field 0.0 0 315 0 600
