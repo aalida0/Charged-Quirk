@@ -1,0 +1,10 @@
+M=500
+L=    30 eV ctau0= 56.230 mm N=2000 <c*tau>=57.73+-1.22 mm ratio=1.027 KS D=0.0316 (5% crit 0.0304)
+L=   100 eV ctau0= 56.230 mm N=2000 <c*tau>=59.16+-1.27 mm ratio=1.052 KS D=0.0336 (5% crit 0.0304)
+L=   300 eV ctau0= 56.230 mm N=2000 <c*tau>=59.60+-1.25 mm ratio=1.060 KS D=0.0393 (5% crit 0.0304)
+L=  1000 eV ctau0= 56.230 mm N=2000 <c*tau>=55.60+-1.16 mm ratio=0.989 KS D=0.0346 (5% crit 0.0304)
+M=1000
+L=    30 eV ctau0= 54.625 mm N=2000 <c*tau>=55.60+-1.22 mm ratio=1.018 KS D=0.0330 (5% crit 0.0304)
+L=   100 eV ctau0= 54.625 mm N=2000 <c*tau>=56.95+-1.26 mm ratio=1.043 KS D=0.0319 (5% crit 0.0304)
+L=   300 eV ctau0= 54.625 mm N=2000 <c*tau>=56.98+-1.23 mm ratio=1.043 KS D=0.0327 (5% crit 0.0304)
+L=  1000 eV ctau0= 54.625 mm N=2000 <c*tau>=57.60+-1.20 mm ratio=1.055 KS D=0.0491 (5% crit 0.0304)
